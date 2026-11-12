@@ -1,0 +1,223 @@
+[
+  {
+    "id": "ripple",
+    "name": "夢中漣漪",
+    "category": "波形",
+    "description": "未來 9 秒疊加振幅 45、週期 5 的 sin 波。",
+    "copies": 3,
+    "effects": [
+      {
+        "kind": "sin_add",
+        "amplitude": 45,
+        "period": 5,
+        "duration": 9
+      }
+    ]
+  },
+  {
+    "id": "swell",
+    "name": "呼聲加倍",
+    "category": "波形",
+    "description": "未來 6 秒，將當時的整體波形放大 2 倍。",
+    "copies": 3,
+    "effects": [
+      {
+        "kind": "scale",
+        "factor": 2,
+        "duration": 6
+      }
+    ]
+  },
+  {
+    "id": "quiet",
+    "name": "輕聲細語",
+    "category": "波形",
+    "description": "未來 6 秒，將當時的整體波形縮小為 0.5 倍。",
+    "copies": 2,
+    "effects": [
+      {
+        "kind": "scale",
+        "factor": 0.5,
+        "duration": 6
+      }
+    ]
+  },
+  {
+    "id": "amplitude",
+    "name": "深沉呼吸",
+    "category": "波形",
+    "description": "永久將基礎振幅乘 1.5；閾值不變，巴掌可清除。",
+    "copies": 3,
+    "effects": [
+      {
+        "kind": "base_amplitude",
+        "factor": 1.5
+      }
+    ]
+  },
+  {
+    "id": "period",
+    "name": "急促呼吸",
+    "category": "波形",
+    "description": "永久將基礎週期乘 0.7；巴掌可清除。",
+    "copies": 2,
+    "effects": [
+      {
+        "kind": "base_period",
+        "factor": 0.7
+      }
+    ]
+  },
+  {
+    "id": "invert",
+    "name": "翻個身",
+    "category": "特殊",
+    "description": "未來 9 秒，將整體波形上下顛倒。",
+    "copies": 3,
+    "effects": [
+      {
+        "kind": "scale",
+        "factor": -1,
+        "duration": 9
+      }
+    ]
+  },
+  {
+    "id": "forecast",
+    "name": "預知夢",
+    "category": "功能",
+    "description": "自己的未來波形可見範圍永久增加 1 秒。",
+    "copies": 2,
+    "effects": [
+      {
+        "kind": "preview",
+        "amount": 1,
+        "target": "self"
+      }
+    ]
+  },
+  {
+    "id": "pocket",
+    "name": "睡衣口袋",
+    "category": "功能",
+    "description": "自己的手牌上限永久增加 1。",
+    "copies": 2,
+    "effects": [
+      {
+        "kind": "hand_limit",
+        "amount": 1,
+        "target": "self"
+      }
+    ]
+  },
+  {
+    "id": "slow",
+    "name": "慢一拍",
+    "category": "功能",
+    "description": "雙方落點間隔永久增加 0.5 秒。",
+    "copies": 2,
+    "effects": [
+      {
+        "kind": "interval",
+        "amount": 0.5,
+        "target": "all"
+      }
+    ]
+  },
+  {
+    "id": "fast",
+    "name": "快一拍",
+    "category": "功能",
+    "description": "雙方落點間隔永久減少 0.5 秒，最少 0.25。",
+    "copies": 2,
+    "effects": [
+      {
+        "kind": "interval",
+        "amount": -0.5,
+        "target": "all"
+      }
+    ]
+  },
+  {
+    "id": "long",
+    "name": "漫漫長夜",
+    "category": "功能",
+    "description": "遊戲終點增加 6 秒；巴掌清除此效果。",
+    "copies": 2,
+    "effects": [
+      {
+        "kind": "duration",
+        "amount": 6,
+        "target": "all"
+      }
+    ]
+  },
+  {
+    "id": "short",
+    "name": "天快亮了",
+    "category": "功能",
+    "description": "遊戲終點減少 6 秒；巴掌清除此效果。",
+    "copies": 2,
+    "effects": [
+      {
+        "kind": "duration",
+        "amount": -6,
+        "target": "all"
+      }
+    ]
+  },
+  {
+    "id": "bonus",
+    "name": "好夢加分",
+    "category": "功能",
+    "description": "自己的得分每次增加 3 分，直到被清除。",
+    "copies": 2,
+    "effects": [
+      {
+        "kind": "score_bonus",
+        "amount": 3,
+        "target": "self"
+      }
+    ]
+  },
+  {
+    "id": "blackout",
+    "name": "關燈",
+    "category": "特殊",
+    "description": "對手在未來 5 秒無法看見波形；數值判定仍正常。",
+    "copies": 2,
+    "effects": [
+      {
+        "kind": "blackout",
+        "duration": 5,
+        "target": "opponent"
+      }
+    ]
+  },
+  {
+    "id": "shuffle",
+    "name": "夢境重整",
+    "category": "特殊",
+    "description": "對手將全部手牌棄掉，再抽回原張數。",
+    "copies": 2,
+    "effects": [
+      {
+        "kind": "reshuffle",
+        "target": "opponent"
+      }
+    ]
+  },
+  {
+    "id": "tool",
+    "name": "安眠抱枕",
+    "category": "道具",
+    "description": "裝備後，下個自己回合起可用；高度朝 0 移動 40，不越過 0，共 2 次。",
+    "copies": 3,
+    "effects": [],
+    "tool": {
+      "kind": "toward_zero",
+      "amount": 40,
+      "uses": 2
+    }
+  }
+]

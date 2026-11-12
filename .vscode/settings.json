@@ -1,0 +1,6 @@
+{
+  "python.analysis.extraPaths": [
+    "./.vendor"
+  ],
+  "files.encoding": "utf8"
+}

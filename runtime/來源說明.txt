@@ -1,0 +1,5 @@
+Python 3.12.10 Windows embeddable package (64-bit)
+來源：https://www.python.org/downloads/release/python-31210/
+下載：https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip
+已核對官方下載頁 MD5：fe8ef205f2e9c3ba44d0cf9954e1abd3
+Pygame 位於專題 .vendor，Python 授權請參閱本資料夾 LICENSE.txt。

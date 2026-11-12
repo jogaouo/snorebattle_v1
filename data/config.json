@@ -1,0 +1,14 @@
+{
+  "amplitude": 50,
+  "period": 12,
+  "interval": 1.5,
+  "duration": 45,
+  "hand_limit": 3,
+  "initial_hand": 3,
+  "preview": 3,
+  "snore_score": 10,
+  "slap_divisor": 5,
+  "slaps": 3,
+  "seed": null,
+  "wave_fade": 1.0
+}
