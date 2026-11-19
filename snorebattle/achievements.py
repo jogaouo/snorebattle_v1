@@ -6,7 +6,7 @@ DEFINITIONS = {
     'first_game': ('初次入夢', '完成一場對局。'),
     'triple_card': ('同一個夢', '同一位玩家連續三次出牌都是同一種卡；棄牌或略過會中斷。'),
     'both_sides': ('翻來覆去', '打呼者在一場內於正、負兩側都得過分。'),
-    'three_slaps': ('叫醒服務', '一場內用完三次巴掌。'),
+    'three_slaps': ('叫醒服務', '一場內用完所有巴掌機會。'),
 }
 
 class Achievements:
@@ -20,7 +20,6 @@ class Achievements:
                 pass
         self.streak = {0:(None,0), 1:(None,0)}
         self.sides = set()
-        self.slaps = 0
         self.new = []
 
     def unlock(self, key, event):
@@ -50,8 +49,8 @@ class Achievements:
             if len(self.sides)==2:
                 self.unlock('both_sides',event)
         elif kind == 'slapped':
-            self.slaps += 1
-            if self.slaps >= 3:
+            # 保留舊成就 ID 相容既有解鎖存檔，判定改用實際剩餘次數。
+            if event.get('remaining') == 0:
                 self.unlock('three_slaps',event)
         elif kind == 'game_ended':
             self.unlock('first_game',event)

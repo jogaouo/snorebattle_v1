@@ -10,11 +10,10 @@ import uuid
 from .effects import Effect, WAVE_HANDLERS, TOOL_HANDLERS, STAT_KINDS, IMMEDIATE_KINDS
 from .wave import Wave
 from .achievements import Achievements
+from .errors import RuleError
+from .scoring import calculate_points, slap_base_points, slap_points
 
 ROLES = ('打呼者','打巴掌者')
-
-class RuleError(ValueError):
-    pass
 
 @dataclass(frozen=True)
 class Command:
@@ -48,13 +47,19 @@ def load_data(root):
     return config, {c['id']:c for c in cards}
 
 def validate(config, cards):
-    for key in ('amplitude','period','interval','duration','hand_limit','initial_hand','preview','slaps','slap_divisor'):
+    for key in ('amplitude','period','interval','duration','hand_limit','initial_hand','preview','slaps'):
         value = config[key]
         if not isinstance(value,(int,float)) or not math.isfinite(value) or value <= 0:
             raise ValueError(f'config: {key} 必須為正數')
     for key in ('hand_limit','initial_hand','slaps'):
         if not isinstance(config[key],int):
             raise ValueError(f'{key} 必須為整數')
+    base=config.get('slap_base',1.05)
+    if isinstance(base,bool) or not isinstance(base,(int,float)) or not math.isfinite(base) or base<1:
+        raise ValueError('slap_base 必須為至少 1 的有限數字')
+    turn_score=config.get('snore_turn_score',1)
+    if isinstance(turn_score,bool) or not isinstance(turn_score,int) or turn_score<0:
+        raise ValueError('snore_turn_score 必須為非負整數')
     if not cards:
         raise ValueError('至少需要一種卡牌')
     for key, card in cards.items():
@@ -62,6 +67,10 @@ def validate(config, cards):
             raise ValueError(f'{key}: copies 必須為非負整數')
         for effect in card['effects']:
             kind = effect['kind']
+            if effect.get('when','always') not in ('always','landing_nonnegative','landing_negative'):
+                raise ValueError(f'{key}: 未註冊的效果條件')
+            if 'clear_on_slap' in effect and not isinstance(effect['clear_on_slap'],bool):
+                raise ValueError(f'{key}: clear_on_slap 必須為布林值')
             if kind not in WAVE_HANDLERS and kind not in STAT_KINDS and kind not in IMMEDIATE_KINDS:
                 raise ValueError(f'{key}: 未註冊效果 {kind}')
             if kind=='sin_add' and effect['period']<=0:
@@ -79,6 +88,9 @@ class Game:
     def __init__(self, config, catalog, save_dir=None, seed=None):
         validate(config,catalog)
         self.config, self.catalog = dict(config), catalog
+        self.config.setdefault('snore_turn_score',1)
+        self.config.setdefault('slap_base',1.05)
+        self.config.pop('slap_divisor',None)
         self.seed = seed if seed is not None else config.get('seed')
         if self.seed is None:
             self.seed = random.SystemRandom().randrange(2**32)
@@ -136,7 +148,7 @@ class Game:
         for effect in self.effects:
             if effect.kind==kind and effect.active(self.x) and (effect.target is None or effect.target==player):
                 result+=effect.params.get('amount',1)
-        if kind=='interval': return max(.25,result)
+        if kind=='interval': return max(.5,result)
         if kind=='duration': return max(0,result)
         if kind=='hand_limit': return max(0,int(result))
         if kind=='preview': return max(0,result)
@@ -182,6 +194,16 @@ class Game:
         self.revision+=1
         self.emit('command_applied', action=command.action,actor=command.player,card_uid=command.card_uid)
 
+    def award_score(self, player, base_points, *, source, rounding='truncate'):
+        """所有得分的共用入口；source 是穩定的來源識別，不是卡名。"""
+        self._require(player in (0,1),'未知得分玩家')
+        bonus=self.stat('score_bonus',player)
+        points=calculate_points(base_points,bonus,rounding=rounding)
+        self.players[player].score+=points
+        self.emit('score_awarded',player=player,source=source,base_points=base_points,
+                  bonus=bonus,rounding=rounding,points=points,total=self.players[player].score)
+        return points
+
     def land(self):
         self._require(self.phase=='landing','目前不是落點階段')
         next_x=0 if self.first_landing else self.x+self.stat('interval',self.active)
@@ -195,11 +217,14 @@ class Game:
         self.points.append(dict(x=self.x,y=self.y,player=self.active))
         self.phase='action'
         self.emit('landed',y=self.y)
+        if self.active==0 and self.config['snore_turn_score']>0:
+            points=self.award_score(0,self.config['snore_turn_score'],source='snore_turn')
+            if points:
+                self.emit('snore_turn_scored',points=points)
 
     def score(self):
         self._require(self.active==0 and self.eligible(),'目前不能取得打呼分數')
-        points=max(0,int(self.config['snore_score']+self.stat('score_bonus',0)))
-        self.players[0].score+=points
+        points=self.award_score(0,self.config['snore_score'],source='snore_action')
         self.role_used=True
         self.emit('snore_scored',points=points,y=self.y)
 
@@ -211,8 +236,8 @@ class Game:
 
     def slap(self):
         self._require(self.active==1 and self.eligible(),'落點須為正且仍有巴掌機會')
-        points=max(0,int(self.y/self.config['slap_divisor']+self.stat('score_bonus',1)))
-        self.players[1].score+=points
+        base_points=slap_base_points(self.y,self.config['slap_base'])
+        points=self.award_score(1,base_points,source='slap',rounding='ceil')
         self.slaps_left-=1
         self.emit('slapped',points=points,y=self.y,remaining=self.slaps_left)
         for player,p in enumerate(self.players):
@@ -220,9 +245,11 @@ class Game:
                 self.discard.append(p.tool.card)
                 self.emit('tool_removed',player=player,card_id=p.tool.card.definition,reason='slap')
                 p.tool=None
-        self.effects.clear()
-        self.wave.publish(self.x,[])
-        self.emit('effects_cleared')
+        removed=[e for e in self.effects if e.clear_on_slap]
+        self.effects=[e for e in self.effects if not e.clear_on_slap]
+        self.wave.publish(self.x,self.effects)
+        self.emit('effects_cleared',removed=[asdict(e) for e in removed],
+                  retained=[asdict(e) for e in self.effects])
         self.end_turn(0)
 
     def use_tool(self):
@@ -261,15 +288,29 @@ class Game:
         """預覽與正式出牌共用同一份效果資料建構邏輯。"""
         target={'self':self.active,'opponent':1-self.active,'all':None}[spec.get('target','all')]
         end=self.x+spec['duration'] if 'duration' in spec else None
-        params={k:v for k,v in spec.items() if k not in ('kind','duration','target')}
-        return Effect(spec['kind'],self.x,end,target,params)
+        params={k:v for k,v in spec.items() if k not in ('kind','duration','target','clear_on_slap','when')}
+        return Effect(spec['kind'],self.x,end,target,params,spec.get('clear_on_slap',True))
+
+    def card_effects(self, definition):
+        """在操作當下選定分支；預覽與正式出牌共用，不依卡牌名稱寫例外。"""
+        conditions={'always':True,'landing_nonnegative':self.y>=0,'landing_negative':self.y<0}
+        selected=[]
+        for spec in definition['effects']:
+            if not conditions[spec.get('when','always')]:
+                continue
+            effect=dict(spec)
+            # 分類規則集中處理，未來新增功能牌不必逐張設定例外。
+            if definition['category']=='功能':
+                effect['clear_on_slap']=False
+            selected.append(effect)
+        return selected
 
     def preview_wave(self, card_uid):
         """純查詢：任何階段均能預覽自己手牌，不抽牌、不發事件或改規則狀態。"""
         card=next((c for c in self.players[self.active].hand if c.uid==card_uid),None)
         if card is None:
             return None
-        specs=[e for e in self.catalog[card.definition]['effects'] if e['kind'] in WAVE_HANDLERS]
+        specs=[e for e in self.card_effects(self.catalog[card.definition]) if e['kind'] in WAVE_HANDLERS]
         if not specs:
             return None
         preview=deepcopy(self.wave)
@@ -295,15 +336,17 @@ class Game:
         definition=self.catalog[card.definition]
         p=self.players[self.active]
         self._require('tool' not in definition or p.tool is None,'道具欄必須為空，請先在行動階段棄掉舊道具')
+        selected_effects=self.card_effects(definition)
         p.hand.remove(card)
         if 'tool' in definition:
             p.tool=Tool(card,p.turns,definition['tool']['uses'])
         # 一般牌在結算後才進棄牌，避免重洗效果把正在使用的牌抽回。
-        for effect in definition['effects']: self.apply_effect(effect)
+        for effect in selected_effects: self.apply_effect(effect)
         if 'tool' not in definition: self.discard.append(card)
-        if any(e['kind'] in WAVE_HANDLERS for e in definition['effects']):
+        if any(e['kind'] in WAVE_HANDLERS for e in selected_effects):
             self.wave.publish(self.x,self.effects)
-        self.emit('card_played',card_id=card.definition,card_uid=card.uid)
+        self.emit('card_played',card_id=card.definition,card_uid=card.uid,landing_y=self.y,
+                  selected_effects=deepcopy(selected_effects))
         self.draw(self.active,max(0,self.stat('hand_limit',self.active)-len(p.hand)))
         if self.x>self.stat('duration')+1e-8:
             self.finish()
@@ -315,7 +358,7 @@ class Game:
         self.players[self.active].hand.remove(card)
         self.discard.append(card)
         self.emit('card_discarded',card_id=card.definition,card_uid=card.uid)
-        self.draw(self.active,1)
+        self.draw(self.active,2)
         self.end_turn(1-self.active)
 
     def skip(self):

@@ -7,8 +7,9 @@
   "initial_hand": 3,
   "preview": 3,
   "snore_score": 10,
-  "slap_divisor": 5,
   "slaps": 3,
   "seed": null,
-  "wave_fade": 1.0
+  "wave_fade": 1.0,
+  "snore_turn_score": 1,
+  "slap_base": 1.05
 }

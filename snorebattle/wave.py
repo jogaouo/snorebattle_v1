@@ -19,7 +19,7 @@ class Wave:
         self.versions.append((x, operations))
 
     def _pipeline(self, operations, x):
-        c = dict(amplitude=self.amplitude, period=self.period,
+        c = dict(amplitude=self.amplitude, period=self.period, phase=0.0,
                  value=self.amplitude*sin(tau*x/self.period))
         for effect in operations:
             if not effect.active(x):

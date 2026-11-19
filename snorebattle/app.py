@@ -5,6 +5,7 @@ import math
 import pygame
 from .assets import Assets
 from .core import Game,Command,RuleError,ROLES,load_data
+from .scoring import slap_points
 from .achievements import Achievements,DEFINITIONS
 
 WIDTH,HEIGHT=1280,840
@@ -14,8 +15,8 @@ CORAL=(255,146,124); GOLD=(247,204,113); PREVIEW=(220,159,255)
 CATEGORIES={'波形':CYAN,'功能':(146,180,255),'特殊':(200,157,247),'道具':GOLD}
 PHASES={'landing':'落點','action':'行動','cards':'出牌','handoff':'換人','ended':'結算'}
 EVENT_NAMES={'card_played':'出牌','card_discarded':'棄牌','landed':'落點','slapped':'打巴掌',
- 'snore_scored':'打呼得分','tool_used':'使用道具','deck_shuffled':'洗牌',
- 'effects_cleared':'清除全部效果','cards_drawn':'抽牌','turn_started':'回合開始',
+ 'snore_turn_scored':'打呼回合得分','snore_scored':'打呼得分','tool_used':'使用道具','deck_shuffled':'洗牌',
+ 'effects_cleared':'清除可重置效果','cards_drawn':'抽牌','turn_started':'回合開始',
  'tool_removed':'道具離場','card_skipped':'略過出牌','game_ended':'對局結束'}
 
 class App:
@@ -35,11 +36,14 @@ class App:
                 for key,count in saved['copies'].items():
                     if key in self.catalog: self.catalog[key]['copies']=max(0,int(count))
             except (ValueError,KeyError,TypeError): pass
+        self.config.pop('slap_divisor',None)
         self.scene='menu'
         self.game=None
         self.running=True
         self.buttons=[]
         self.selected=None
+        self.inspect_tool=False
+        self.detail_scroll=0
         self._preview_key=None
         self._preview_wave=None
         self.hand_offset=0
@@ -104,6 +108,8 @@ class App:
         try:
             g.dispatch(Command(g.active,action,self.selected,g.revision))
             self.selected=None
+            self.inspect_tool=(action=='use_tool' and g.players[g.active].tool is not None)
+            self.detail_scroll=0
             self.hand_offset=0
             if g.x != previous_x:
                 self.camera_from=self.camera_x
@@ -144,6 +150,8 @@ class App:
         self.scene='battle'
         self.camera_x=self.camera_from=self.camera_target=self.game.x
         self.selected=None
+        self.inspect_tool=False
+        self.detail_scroll=0
         self._preview_key=None
         self._preview_wave=None
         self.hand_offset=0
@@ -165,10 +173,11 @@ class App:
         self.deck_offset=0
 
     def adjust(self,key,delta):
-        minimum={'duration':3,'interval':.25,'period':1,'amplitude':1,
+        minimum={'duration':3,'interval':.5,'period':1,'amplitude':1,
                  'hand_limit':1,'initial_hand':1,'preview':0,'slaps':1,
-                 'snore_score':0,'slap_divisor':.1}[key]
-        self.config[key]=round(max(minimum,self.config[key]+delta),2)
+                 'snore_score':0,'snore_turn_score':0,'slap_base':1.0}[key]
+        value=round(max(minimum,self.config[key]+delta),2)
+        self.config[key]=int(value) if key=='snore_turn_score' else value
 
     def adjust_copies(self,key,delta):
         self.catalog[key]['copies']=max(0,min(99,self.catalog[key]['copies']+delta))
@@ -183,16 +192,22 @@ class App:
     def settings(self):
         self.text('對局準備' if self.scene=='setup' else '設定',40,26,32,CYAN)
         self.text('全部數值與卡牌皆為測試內容；每局共用一副牌。',40,73,18,MUTED)
-        fields=[('振幅／閾值','amplitude',10),('基礎週期','period',1),('落點間隔','interval',.25),
-                ('遊戲總長度','duration',3),('初始手牌','initial_hand',1),('手牌上限','hand_limit',1),
-                ('預覽長度','preview',1),('巴掌次數','slaps',1),('打呼固定分','snore_score',1),('巴掌分母','slap_divisor',1)]
+        fields=[('振幅／閾值','amplitude',1),('基礎週期','period',1),('落點間隔','interval',.5),
+                ('遊戲總長度','duration',1),('初始手牌','initial_hand',1),('手牌上限','hand_limit',1),
+                ('預覽長度','preview',1),('巴掌次數','slaps',1),('打呼固定分','snore_score',1),('巴掌底數','slap_base',.01),('打呼回合得分','snore_turn_score',1)]
         for i,(label,key,step) in enumerate(fields):
             col=i%2; row=i//2
-            x=40+col*610; y=114+row*39
+            x=40+col*610; y=114+row*34
             self.text(label,x,y+4,18)
             self.text(f'{self.config[key]:g}',x+250,y+4,18,GOLD)
             self.button('-',(x+350,y,42,32),lambda k=key,d=-step:self.adjust(k,d))
             self.button('+',(x+400,y,42,32),lambda k=key,d=step:self.adjust(k,d))
+        try:
+            threshold_score=str(slap_points(self.config['amplitude'],self.config['slap_base']))
+        except RuleError:
+            threshold_score='超出範圍'
+        if len(threshold_score)>18: threshold_score=threshold_score[:12]+'…'
+        self.text(f'正閾值 +{self.config["amplitude"]:g}：巴掌 {threshold_score} 分',650,288,18,GOLD)
         self.text('共用牌堆組成',40,327,23)
         self.text('滾輪捲動清單；0 張表示不加入。',320,334,17,MUTED)
         self.text(f'總張數 {sum(c["copies"] for c in self.catalog.values())}',1030,334,19,GOLD)
@@ -224,7 +239,7 @@ class App:
 
     def selected_wave_preview(self):
         g=self.game
-        key=(id(g),g.revision,g.x,self.selected)
+        key=(id(g),g.revision,g.x,g.y,self.selected)
         if key!=self._preview_key:
             self._preview_key=key
             self._preview_wave=g.preview_wave(self.selected)
@@ -289,7 +304,16 @@ class App:
                 if point['x']<=self.camera_x+1e-8 and inner.collidepoint(px,py):
                     pygame.draw.circle(self.canvas,CYAN if point['player']==0 else CORAL,(px,py),5)
             marker_y=g.wave.value(self.camera_x) if self.camera_moving() else g.y
-            pygame.draw.circle(self.canvas,GOLD,(anchor,cy-marker_y*scale),8)
+            marker_py=cy-marker_y*scale
+            pygame.draw.circle(self.canvas,GOLD,(anchor,marker_py),8)
+            # 高度標籤屬於波形區，只在非關燈分支繪製。
+            label=f'{marker_y:+.1f}'
+            font=self.assets.font(17)
+            label_width,label_height=font.size(label)
+            label_x=max(inner.left+8,anchor-14-label_width)
+            label_y=max(inner.top+4,min(inner.bottom-label_height-4,marker_py-label_height-8))
+            self.panel((label_x-4,label_y-2,label_width+8,label_height+4),BG,5)
+            self.text(label,label_x,label_y,17,GOLD)
         else:
             self.panel(inner,(7,10,18),0)
             self.text('關燈中：波形暫時不可見，落點判定仍有效',355,245,23,MUTED)
@@ -342,7 +366,7 @@ class App:
         self.button('紀錄 F3',(1000,25,115,42),self.toggle_log)
         self.button('主選單',(1130,25,110,42),lambda:self.set_scene('menu'))
         self.draw_graph()
-        self.text(f'x = {g.x:g} / {g.stat("duration"):g}    高度 {g.y:+.1f}    間隔 {g.stat("interval",g.active):g}',
+        self.text(f'x = {g.x:g} / {g.stat("duration"):g}    間隔 {g.stat("interval",g.active):g}',
                   46,432,19,GOLD)
         self.text(f'牌堆 {len(g.draw_pile)}  棄牌 {len(g.discard)}  有效效果 {len(g.effects)}',820,434,17,MUTED)
         if self.camera_moving():
@@ -356,6 +380,7 @@ class App:
                 self.button('額外抽 1 張',(205,475,150,46),lambda:self.command('bonus_draw'),g.eligible())
             else:
                 self.button('打巴掌！',(45,475,225,46),lambda:self.command('slap'),g.eligible(),True)
+            self.button('查看道具',(420,475,145,46),self.select_tool,g.players[g.active].tool is not None,self.inspect_tool)
             self.button('使用道具',(420,475,160,46),lambda:self.command('use_tool'),g.tool_ready())
             self.button('棄掉道具',(590,475,160,46),lambda:self.command('discard_tool'),g.players[g.active].tool is not None)
             self.button('前往出牌階段',(1010,475,225,46),lambda:self.command('to_cards'),accent=True)
@@ -364,7 +389,7 @@ class App:
             selected=next((c for c in g.players[g.active].hand if c.uid==self.selected),None)
             can_play=selected is not None and ('tool' not in g.catalog[selected.definition] or g.players[g.active].tool is None)
             self.button('出牌並補滿',(650,475,180,46),lambda:self.command('play'),can_play,True)
-            self.button('棄 1 抽 1',(840,475,180,46),lambda:self.command('discard'),selected is not None)
+            self.button('棄 1 抽 2',(840,475,180,46),lambda:self.command('discard'),selected is not None)
             self.button('略過出牌',(1030,475,200,46),lambda:self.command('skip'))
         elif g.phase=='handoff':
             self.text(f'交給 {ROLES[g.active]} 操作；不遮手牌。',45,482,20,color)
@@ -375,6 +400,7 @@ class App:
             self.text('對局結束：'+result,48,480,27,GOLD)
             self.button('再玩一場',(1010,475,225,46),self.start_game,accent=True)
         self.draw_hand()
+        self.draw_details()
         self.draw_character(105,660,False)
         self.draw_character(1175,660,True)
         self.text('打巴掌者',53,738,18,CORAL)
@@ -384,32 +410,106 @@ class App:
         if tool:
             name=g.catalog[tool.card.definition]['name']
             uses='永久' if tool.remaining is None else f'{tool.remaining} 次'
-            self.text(f'道具：{name} / {uses}',205,788,18,GOLD)
+            self.button(f'道具：{name} / {uses}（點選查看）',(205,775,640,40),self.select_tool,accent=self.inspect_tool)
         else: self.text('道具欄：空',205,788,18,MUTED)
-        self.text('完整紀錄：saves/logs/*.jsonl',795,790,16,MUTED)
+        self.text('完整紀錄：saves/logs/*.jsonl',40,820,13,MUTED)
 
     def draw_hand(self):
         g=self.game
         hand=g.players[g.active].hand
         self.text(f'{ROLES[g.active]} 手牌 {len(hand)} / 上限 {g.stat("hand_limit",g.active)}',205,540,19)
-        self.text('滾輪／左右箭頭捲動',830,542,16,MUTED)
-        self.hand_offset=min(self.hand_offset,max(0,len(hand)-6))
+        self.text('滾輪／左右箭頭捲動',615,542,15,MUTED)
+        self.hand_offset=min(self.hand_offset,max(0,len(hand)-4))
         self.button('‹',(165,625,30,56),lambda:self.scroll_hand(-1),self.hand_offset>0)
-        self.button('›',(1080,625,30,56),lambda:self.scroll_hand(1),self.hand_offset+6<len(hand))
-        for i,card in enumerate(hand[self.hand_offset:self.hand_offset+6]):
-            definition=g.catalog[card.definition]
-            x=205+i*145; y=576
-            rect=pygame.Rect(x,y,135,185)
-            selected=card.uid==self.selected
-            self.panel(rect,(43,62,82) if selected else PANEL)
-            accent=CATEGORIES[definition['category']]
-            pygame.draw.rect(self.canvas,accent if selected else LINE,rect,2,border_radius=14)
-            self.text(definition['category'],x+12,y+12,16,accent)
-            self.text(definition['name'],x+10,y+43,19)
-            self.wrap(definition['description'],x+10,y+77,115,15,MUTED,line_height=21,max_lines=5)
-            self.buttons.append((rect,lambda uid=card.uid:self.select(uid)))
+        self.button('›',(830,625,30,56),lambda:self.scroll_hand(1),self.hand_offset+4<len(hand))
+        # 四張完整手牌；前後仍有牌時，在左右邊界各露出局部。
+        viewport=pygame.Rect(205,576,610,185)
+        previous_clip=self.canvas.get_clip()
+        self.canvas.set_clip(viewport.clip(previous_clip))
+        try:
+            first=max(0,self.hand_offset-1)
+            last=min(len(hand),self.hand_offset+5)
+            for index in range(first,last):
+                card=hand[index]
+                i=index-self.hand_offset
+                definition=g.catalog[card.definition]
+                rect=pygame.Rect(249+i*134,576,120,185)
+                selected=card.uid==self.selected
+                self.panel(rect,(43,62,82) if selected else PANEL)
+                accent=CATEGORIES[definition['category']]
+                pygame.draw.rect(self.canvas,accent if selected else LINE,rect,2,border_radius=14)
+                size=22
+                while size>15 and self.assets.font(size).size(definition['name'])[0]>100:
+                    size-=1
+                title=self.assets.font(size).render(definition['name'],True,TEXT)
+                self.canvas.blit(title,title.get_rect(center=rect.center))
+                hit_rect=rect.clip(viewport)
+                self.buttons.append((hit_rect,lambda uid=card.uid,index=index:self.select_hand(uid,index)))
+        finally:
+            self.canvas.set_clip(previous_clip)
 
-    def select(self,uid): self.selected=None if self.selected==uid else uid
+    def select_hand(self,uid,index):
+        if index<self.hand_offset:
+            self.hand_offset=index
+        elif index>=self.hand_offset+4:
+            self.hand_offset=index-3
+        self.select(uid)
+
+    def select(self,uid):
+        self.selected=None if self.selected==uid else uid
+        self.inspect_tool=False
+        self.detail_scroll=0
+
+    def select_tool(self):
+        if self.game.players[self.game.active].tool is None:
+            return
+        self.inspect_tool=not self.inspect_tool
+        self.selected=None
+        self.detail_scroll=0
+
+    def selected_details(self):
+        g=self.game
+        player=g.players[g.active]
+        if self.inspect_tool and player.tool:
+            tool=player.tool
+            remaining='永久使用' if tool.remaining is None else f'剩餘 {tool.remaining} 次'
+            if player.turns<=tool.equipped_turn: status='下個自己的回合可用'
+            elif g.tool_used: status='本回合已使用'
+            else: status='行動階段可使用'
+            return g.catalog[tool.card.definition],remaining+' · '+status
+        card=next((c for c in player.hand if c.uid==self.selected),None)
+        if card:
+            definition=g.catalog[card.definition]
+            return definition,definition['category']+'牌 · 手牌'
+        return None
+
+    def description_lines(self,text,width=193,size=17):
+        lines=[]; line=''
+        font=self.assets.font(size)
+        for char in text:
+            if char=='\n' or font.size(line+char)[0]>width:
+                lines.append(line); line='' if char=='\n' else char
+            else: line+=char
+        if line: lines.append(line)
+        return lines
+
+    def draw_details(self):
+        self.panel((880,540,225,275))
+        self.text('卡牌／道具說明',896,552,18,MUTED)
+        details=self.selected_details()
+        if details is None:
+            self.wrap('點選手牌或已裝備道具，查看完整效果。',896,604,193,19,MUTED)
+            return
+        definition,status=details
+        self.text(definition['name'],896,584,22,CATEGORIES[definition['category']])
+        self.wrap(status,896,622,193,14,MUTED,line_height=18,max_lines=2)
+        lines=self.description_lines(definition['description'])
+        self.detail_scroll=max(0,min(self.detail_scroll,max(0,len(lines)-6)))
+        for i,line in enumerate(lines[self.detail_scroll:self.detail_scroll+6]):
+            self.text(line,896,662+i*23,17)
+        if len(lines)>6:
+            self.text(f'滾輪閱讀 {self.detail_scroll+1}/{len(lines)-5}',896,798,12,MUTED)
+
     def scroll_hand(self,delta): self.hand_offset=max(0,self.hand_offset+delta)
     def toggle_log(self): self.log_open=not self.log_open
 
@@ -428,7 +528,6 @@ class App:
             detail=''
             if 'card_id' in event: detail=self.game.catalog[event['card_id']]['name']
             if 'points' in event: detail+=f' +{event["points"]} 分'
-            if 'y' in event: detail+=f' y={event["y"]:.1f}'
             if event['type']=='cards_drawn': detail=f'{len(event["cards"])} 張'
             self.text(f'#{event["seq"]:03}  x={event["x"]:5.1f}  {player}  {name}  {detail}',100,175+i*27,17)
         self.text('詳細參數與抽牌結果均保存在 saves/logs，可用於追查規則。',100,710,17,MUTED)
@@ -464,7 +563,10 @@ class App:
             elif event.key in (pygame.K_LEFT,pygame.K_RIGHT) and self.scene=='battle':
                 self.scroll_hand(-1 if event.key==pygame.K_LEFT else 1)
         elif event.type==pygame.MOUSEWHEEL and not self.log_open:
-            if self.scene=='battle': self.scroll_hand(-event.y)
+            if self.scene=='battle':
+                if pygame.Rect(880,540,225,275).collidepoint(self.mouse()):
+                    self.detail_scroll=max(0,self.detail_scroll-event.y)
+                else: self.scroll_hand(-event.y)
             elif self.scene in ('setup','settings'):
                 self.deck_offset=max(0,min(len(self.catalog)-8,self.deck_offset-event.y))
         elif event.type==pygame.MOUSEBUTTONDOWN and event.button==1:
@@ -487,3 +589,6 @@ class App:
             Path(screenshot).parent.mkdir(parents=True,exist_ok=True)
             pygame.image.save(self.canvas,str(screenshot))
         pygame.quit()
+
+
+

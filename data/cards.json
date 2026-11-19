@@ -3,14 +3,29 @@
     "id": "ripple",
     "name": "夢中漣漪",
     "category": "波形",
-    "description": "未來 9 秒疊加振幅 45、週期 5 的 sin 波。",
+    "description": "未來 18 秒疊加振幅 45、週期 5 的 sin 波。",
     "copies": 3,
     "effects": [
       {
         "kind": "sin_add",
         "amplitude": 45,
         "period": 5,
-        "duration": 9
+        "duration": 18
+      }
+    ]
+  },
+  {
+    "id": "ripple_reverse",
+    "name": "夢中逆流",
+    "category": "波形",
+    "description": "未來 18 秒疊加振幅 -45、週期 5 的 sin 波；起始朝下。",
+    "copies": 3,
+    "effects": [
+      {
+        "kind": "sin_add",
+        "amplitude": -45,
+        "period": 5,
+        "duration": 18
       }
     ]
   },
@@ -59,7 +74,7 @@
     "id": "period",
     "name": "急促呼吸",
     "category": "波形",
-    "description": "永久將基礎週期乘 0.7；巴掌可清除。",
+    "description": "從出牌位置接續相位，永久將基礎週期乘0.7；巴掌可清除。",
     "copies": 2,
     "effects": [
       {
@@ -72,13 +87,12 @@
     "id": "invert",
     "name": "翻個身",
     "category": "特殊",
-    "description": "未來 9 秒，將整體波形上下顛倒。",
+    "description": "永久將整體波形上下顛倒；再翻一次可翻回，巴掌可清除。",
     "copies": 3,
     "effects": [
       {
         "kind": "scale",
-        "factor": -1,
-        "duration": 9
+        "factor": -1
       }
     ]
   },
@@ -86,13 +100,14 @@
     "id": "forecast",
     "name": "預知夢",
     "category": "功能",
-    "description": "自己的未來波形可見範圍永久增加 1 秒。",
+    "description": "自己的未來波形可見範圍永久增加 1 秒；不會被巴掌清除。",
     "copies": 2,
     "effects": [
       {
         "kind": "preview",
         "amount": 1,
-        "target": "self"
+        "target": "self",
+        "clear_on_slap": false
       }
     ]
   },
@@ -100,13 +115,14 @@
     "id": "pocket",
     "name": "睡衣口袋",
     "category": "功能",
-    "description": "自己的手牌上限永久增加 1。",
+    "description": "自己的手牌上限永久增加 1；不會被巴掌清除。",
     "copies": 2,
     "effects": [
       {
         "kind": "hand_limit",
         "amount": 1,
-        "target": "self"
+        "target": "self",
+        "clear_on_slap": false
       }
     ]
   },
@@ -114,13 +130,14 @@
     "id": "slow",
     "name": "慢一拍",
     "category": "功能",
-    "description": "雙方落點間隔永久增加 0.5 秒。",
+    "description": "雙方落點間隔永久增加 0.5 秒；不會被巴掌清除。",
     "copies": 2,
     "effects": [
       {
         "kind": "interval",
         "amount": 0.5,
-        "target": "all"
+        "target": "all",
+        "clear_on_slap": false
       }
     ]
   },
@@ -128,13 +145,14 @@
     "id": "fast",
     "name": "快一拍",
     "category": "功能",
-    "description": "雙方落點間隔永久減少 0.5 秒，最少 0.25。",
+    "description": "雙方落點間隔永久減少 0.5 秒，最少 0.5；不會被巴掌清除。",
     "copies": 2,
     "effects": [
       {
         "kind": "interval",
         "amount": -0.5,
-        "target": "all"
+        "target": "all",
+        "clear_on_slap": false
       }
     ]
   },
@@ -142,13 +160,14 @@
     "id": "long",
     "name": "漫漫長夜",
     "category": "功能",
-    "description": "遊戲終點增加 6 秒；巴掌清除此效果。",
+    "description": "遊戲終點增加 6 秒；不會被巴掌清除。",
     "copies": 2,
     "effects": [
       {
         "kind": "duration",
         "amount": 6,
-        "target": "all"
+        "target": "all",
+        "clear_on_slap": false
       }
     ]
   },
@@ -156,13 +175,14 @@
     "id": "short",
     "name": "天快亮了",
     "category": "功能",
-    "description": "遊戲終點減少 6 秒；巴掌清除此效果。",
+    "description": "遊戲終點減少 6 秒；不會被巴掌清除。",
     "copies": 2,
     "effects": [
       {
         "kind": "duration",
         "amount": -6,
-        "target": "all"
+        "target": "all",
+        "clear_on_slap": false
       }
     ]
   },
@@ -170,13 +190,14 @@
     "id": "bonus",
     "name": "好夢加分",
     "category": "功能",
-    "description": "自己的得分每次增加 3 分，直到被清除。",
+    "description": "自己每次得分+5，包含回合自動得分、行動得分與巴掌；不會被巴掌清除。",
     "copies": 2,
     "effects": [
       {
         "kind": "score_bonus",
-        "amount": 3,
-        "target": "self"
+        "amount": 5,
+        "target": "self",
+        "clear_on_slap": false
       }
     ]
   },
@@ -198,12 +219,20 @@
     "id": "shuffle",
     "name": "夢境重整",
     "category": "特殊",
-    "description": "對手將全部手牌棄掉，再抽回原張數。",
+    "description": "非負：重整自己的手牌；負數：上限+1，不被巴掌清除。",
     "copies": 2,
     "effects": [
       {
         "kind": "reshuffle",
-        "target": "opponent"
+        "target": "self",
+        "when": "landing_nonnegative"
+      },
+      {
+        "kind": "hand_limit",
+        "amount": 1,
+        "target": "self",
+        "when": "landing_negative",
+        "clear_on_slap": false
       }
     ]
   },
@@ -211,12 +240,12 @@
     "id": "tool",
     "name": "安眠抱枕",
     "category": "道具",
-    "description": "裝備後，下個自己回合起可用；高度朝 0 移動 40，不越過 0，共 2 次。",
+    "description": "下個自己回合起可用；高度朝0移動50，可越過0，共2次。",
     "copies": 3,
     "effects": [],
     "tool": {
       "kind": "toward_zero",
-      "amount": 40,
+      "amount": 50,
       "uses": 2
     }
   }
