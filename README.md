@@ -4,17 +4,24 @@ Pygame 同機雙人回合制卡牌遊戲的基礎可玩版本。規則依 `遊�
 
 ## 開始遊戲
 
-直接雙擊 `啟動遊戲.cmd`。本專題已內附 `runtime/python.exe`（Windows x64 Python 3.12.10）與 `.vendor` 的 Pygame，啟動時不再依賴系統 Python 或 Codex 更新路徑。移動或複製專題時請保留 runtime、.vendor、data、assets 與 snorebattle 等資料夾。
+Windows 64 位元：從 GitHub 下載 ZIP 後，先完整解壓縮，再雙擊 `啟動遊戲.cmd`。不需另裝 Python、Pygame，也不需連網。
 
-其他電腦建議安裝 Python 3.12 或更新版本，於專題資料夾終端機執行：
+- 專案內附 `runtime/python.exe`（Windows x64 Python 3.12.10）。
+- 首次啟動會檢查 Pygame，若尚未安裝，從 `dependencies/pygame-ce-2.5.6-windows-py312.zip` 驗證並解壓到 `.vendor`，接著啟動遊戲。
+- 後續啟動直接使用本機已準備好的 Pygame，不會每次重裝。
+- 下載／複製專案時，保留 `bootstrap.py`、`dependencies`、`runtime`、`data`、`assets` 與 `snorebattle`。請勿直接在 ZIP 內點啟動檔。
+- `.vendor` 是自動產生的資料夾，不需要提交 Git；`dependencies` 中的離線包需要提交並推送到 GitHub。
+- 若出錯，啟動視窗會保留訊息。離線包遺失或損毀時，重新下載完整專案。
+
+若要使用自己安裝的 Python 開發，可自行建立環境（以下以 Python 3.12 為例）：
 
 ```powershell
-python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe main.py
 ```
 
-`.vendor` 是本機 Windows／Python 3.12 的依賴，不應帶到不同 Python 版本使用；移至其他環境時以該環境重裝，或移開 `.vendor` 再使用虛擬環境。
+內附環境與離線包限 Windows 64 位元／Python 3.12；其他平台請使用自己的 Python 環境，依 `requirements.txt` 安裝依賴。
 
 ## 玩法與操作
 
