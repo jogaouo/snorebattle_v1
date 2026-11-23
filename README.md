@@ -23,6 +23,8 @@ py -3.12 -m venv .venv
 
 內附環境與離線包限 Windows 64 位元／Python 3.12；其他平台請使用自己的 Python 環境，依 `requirements.txt` 安裝依賴。
 
+啟動時為一般可拖曳、可縮放視窗，依桌面大小自動縮小，最多使用約90%的桌面寬高，避免小螢幕或顯示縮放造成標題列超出畫面。內部畫布仍為1280×840，畫面與滑鼠座標會等比例轉換；可拖曳視窗邊緣自行調整大小。
+
 ## 玩法與操作
 
 - 開始遊戲 → 調整初始數值、每種牌的張數 → 開始對局。
@@ -48,11 +50,13 @@ py -3.12 -m venv .venv
 | `snorebattle/achievements.py` | 成就進度追蹤 |
 | `snorebattle/app.py` | Pygame 畫面與操作 |
 | `snorebattle/assets.py` | 字型、圖片、音效及音樂入口 |
-| `saves/settings.json` | 遊戲內儲存的設定，會覆蓋 data 預設值 |
+| `saves/settings.json` | 可提交的平衡設定與牌堆組成；新下載版會自動載入並覆蓋 data 預設值 |
 | `saves/achievements.json` | 本機共用的成就解鎖紀錄 |
 | `saves/logs/*.jsonl` | 每局獨立事件紀錄，含 seed、初始牌組、命令與結算事件 |
 
 若修改 `data` 後沒看到數值改變，先檢查 `saves/settings.json` 的已儲存設定。
+
+目前調整好的平衡版本存於 `saves/settings.json`，此檔案允許提交 Git。更新平衡時，在遊戲內儲存設定後，將此檔案一起 commit、push；其他電腦下載或更新後會直接使用這組數值與牌堆。成就、對局紀錄及其他 saves 檔案仍被忽略。因為設定檔已版本控管，個人調整並儲存後也會顯示為 Git 變更。
 
 ## 新增卡牌／道具
 

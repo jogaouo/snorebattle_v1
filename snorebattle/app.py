@@ -2,6 +2,7 @@ from copy import deepcopy
 from pathlib import Path
 import json
 import math
+import os
 import pygame
 from .assets import Assets
 from .core import Game,Command,RuleError,ROLES,load_data
@@ -20,11 +21,19 @@ EVENT_NAMES={'card_played':'出牌','card_discarded':'棄牌','landed':'落點',
  'effects_cleared':'清除可重置效果','cards_drawn':'抽牌','turn_started':'回合開始',
  'tool_removed':'道具離場','card_skipped':'略過出牌','game_ended':'對局結束'}
 
+def initial_window_size(desktop):
+    """畫布維持1280×840；啟動視窗配合桌面縮小，預留標題列及工作列空間。"""
+    scale=min(1.0,max(1,desktop[0])*.9/WIDTH,max(1,desktop[1])*.9/HEIGHT)
+    return max(1,int(WIDTH*scale)),max(1,int(HEIGHT*scale))
+
+
 class App:
     def __init__(self,root):
         pygame.init()
         self.root=Path(root)
-        self.screen=pygame.display.set_mode((WIDTH,HEIGHT),pygame.RESIZABLE)
+        os.environ.setdefault('SDL_VIDEO_CENTERED','1')
+        desktop=pygame.display.get_desktop_sizes()[0]
+        self.screen=pygame.display.set_mode(initial_window_size(desktop),pygame.RESIZABLE)
         pygame.display.set_caption('Snore Battle｜打呼卡牌對戰 · 基礎版')
         self.canvas=pygame.Surface((WIDTH,HEIGHT))
         self.assets=Assets(root)

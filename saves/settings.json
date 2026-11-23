@@ -1,0 +1,36 @@
+{
+  "config": {
+    "amplitude": 50,
+    "period": 12,
+    "interval": 1.5,
+    "duration": 60,
+    "hand_limit": 3,
+    "initial_hand": 3,
+    "preview": 1,
+    "snore_score": 10,
+    "slaps": 2,
+    "seed": null,
+    "wave_fade": 1.0,
+    "snore_turn_score": 1,
+    "slap_base": 1.04
+  },
+  "copies": {
+    "ripple": 4,
+    "ripple_reverse": 4,
+    "swell": 2,
+    "quiet": 2,
+    "amplitude": 2,
+    "period": 2,
+    "invert": 3,
+    "forecast": 5,
+    "pocket": 5,
+    "slow": 2,
+    "fast": 2,
+    "long": 2,
+    "short": 2,
+    "bonus": 2,
+    "blackout": 2,
+    "shuffle": 3,
+    "tool": 0
+  }
+}

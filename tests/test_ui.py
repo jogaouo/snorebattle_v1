@@ -13,7 +13,7 @@ if sys.platform=='win32' and sys.version_info[:2]==(3,12):
     sys.path.insert(0,str(ROOT/'.vendor'))
 try:
     import pygame
-    from snorebattle.app import App,GOLD,PREVIEW
+    from snorebattle.app import App,GOLD,PREVIEW,initial_window_size
     from snorebattle.core import Game,Tool
 except ModuleNotFoundError:
     pygame=None
@@ -21,7 +21,8 @@ except ModuleNotFoundError:
 @unittest.skipIf(pygame is None,'未安裝 Pygame，略過圖像測試')
 class UITests(unittest.TestCase):
     def setUp(self):
-        self.app=App(ROOT)
+        with patch('pygame.display.get_desktop_sizes',return_value=[(1920,1080)]):
+            self.app=App(ROOT)
         self.app.catalog['tool']['copies']=2
         self.app.game=Game(self.app.config,self.app.catalog,seed=17)
         self.app.scene='battle'
@@ -29,6 +30,24 @@ class UITests(unittest.TestCase):
 
     def tearDown(self):
         pygame.quit()
+
+    def test_small_desktop_fits_window_and_preserves_click_mapping(self):
+        self.assertEqual(initial_window_size((1920,1080)),(1280,840))
+        for desktop in [(1366,768),(1280,720),(800,600)]:
+            width,height=initial_window_size(desktop)
+            self.assertLessEqual(width,desktop[0]*.9)
+            self.assertLessEqual(height,desktop[1]*.9)
+        with patch('pygame.display.get_desktop_sizes',return_value=[(1366,768)]):
+            app=App(ROOT)
+        self.app=app
+        self.assertEqual(app.screen.get_size(),initial_window_size((1366,768)))
+        self.assertEqual(app.canvas.get_size(),(1280,840))
+        self.assertFalse(app.screen.get_flags() & pygame.FULLSCREEN)
+        app.render()
+        v=app.viewport
+        click=(round(v.x+200*v.width/1280),round(v.y+355*v.height/840))
+        app.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN,button=1,pos=click))
+        self.assertEqual(app.scene,'setup')
 
     def test_initial_action_and_center_marker(self):
         self.app.render()
