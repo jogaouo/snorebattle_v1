@@ -86,7 +86,7 @@
   {
     "id": "invert",
     "name": "翻個身",
-    "category": "特殊",
+    "category": "波形",
     "description": "永久將整體波形上下顛倒；再翻一次可翻回，巴掌可清除。",
     "copies": 3,
     "effects": [
@@ -202,23 +202,9 @@
     ]
   },
   {
-    "id": "blackout",
-    "name": "關燈",
-    "category": "特殊",
-    "description": "對手在未來 5 秒無法看見波形；數值判定仍正常。",
-    "copies": 2,
-    "effects": [
-      {
-        "kind": "blackout",
-        "duration": 5,
-        "target": "opponent"
-      }
-    ]
-  },
-  {
     "id": "shuffle",
     "name": "夢境重整",
-    "category": "特殊",
+    "category": "功能",
     "description": "非負：重整自己的手牌；負數：上限+1，不被巴掌清除。",
     "copies": 2,
     "effects": [
@@ -233,6 +219,20 @@
         "target": "self",
         "when": "landing_negative",
         "clear_on_slap": false
+      }
+    ]
+  },
+  {
+    "id": "blackout",
+    "name": "關燈",
+    "category": "特殊",
+    "description": "對手在未來 5 秒無法看見波形；數值判定仍正常。",
+    "copies": 2,
+    "effects": [
+      {
+        "kind": "blackout",
+        "duration": 5,
+        "target": "opponent"
       }
     ]
   },

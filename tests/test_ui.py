@@ -46,8 +46,74 @@ class UITests(unittest.TestCase):
         app.render()
         v=app.viewport
         click=(round(v.x+200*v.width/1280),round(v.y+355*v.height/840))
-        app.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN,button=1,pos=click))
-        self.assertEqual(app.scene,'setup')
+        with patch('snorebattle.app.Game',side_effect=lambda config,catalog,save_dir:Game(config,catalog,seed=17)):
+            app.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN,button=1,pos=click))
+        self.assertEqual(app.scene,'battle')
+        self.assertEqual(app.game.phase,'action')
+
+    def test_audio_volume_persists_separately_and_card_plays_once_on_success(self):
+        import json,shutil,tempfile
+        app=self.app
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            shutil.copytree(ROOT/'data',root/'data')
+            app.root=root
+            app.set_sfx_volume(.3)
+            self.assertAlmostEqual(app.assets.sounds['card'].get_volume(),.3,delta=.01)
+            app.save_settings()
+            balance=json.loads((root/'saves/settings.json').read_text(encoding='utf-8'))
+            self.assertEqual(set(balance),{'config','copies'})
+            self.assertEqual(json.loads((root/'saves/preferences.json').read_text())['sfx_volume'],.3)
+            reloaded=App(root)
+            self.assertEqual(reloaded.preferences['sfx_volume'],.3)
+        with patch.object(app.assets,'sound') as sound:
+            app.select(app.game.players[0].hand[0].uid)
+            app.render()
+            sound.assert_not_called()
+            app.command('play')  # 行動階段不可出牌，不播放。
+            sound.assert_not_called()
+            app.command('to_cards')
+            app.select(app.game.players[0].hand[0].uid)
+            app.command('play')
+            sound.assert_called_once_with('card')
+
+    def test_clicking_hand_plays_selection_sound_once_and_deselect_is_silent(self):
+        app=self.app
+        first,second=app.game.players[0].hand[:2]
+        self.assertIn('card_select',app.assets.sounds)
+        with patch.object(app.assets,'sound') as sound:
+            app.select_hand(first.uid,0)
+            sound.assert_called_once_with('card_select')
+            app.render()
+            self.assertEqual(sound.call_count,1)
+            app.select_hand(first.uid,0)
+            self.assertIsNone(app.selected)
+            self.assertEqual(sound.call_count,1)
+            app.select_hand(second.uid,1)
+            self.assertEqual(sound.call_count,2)
+        app.set_sfx_volume(.3)
+        self.assertAlmostEqual(app.assets.sounds['card_select'].get_volume(),.3,delta=.01)
+
+    def test_settings_tabs_volume_limits_and_mute(self):
+        from unittest.mock import Mock
+        app=self.app
+        app.scene='settings'
+        app.settings_tab='audio';app.render()
+        app.handle(pygame.event.Event(pygame.MOUSEWHEEL,y=-1,x=0))
+        self.assertEqual(app.deck_offset,0)
+        app.set_settings_tab('cards');app.render()
+        app.handle(pygame.event.Event(pygame.MOUSEWHEEL,y=-1,x=0))
+        self.assertEqual(app.deck_offset,1)
+        app.set_settings_tab('rules');app.render()
+        fake_sound=Mock();app.assets.sounds['card']=fake_sound
+        app.set_sfx_volume(-1)
+        app.assets.sound('card')
+        fake_sound.set_volume.assert_called_with(0)
+        fake_sound.play.assert_not_called()
+        app.set_sfx_volume(2)
+        self.assertEqual(app.preferences['sfx_volume'],1)
+        app.assets.sound('card')
+        fake_sound.play.assert_called_once()
 
     def test_initial_action_and_center_marker(self):
         self.app.render()
@@ -236,13 +302,13 @@ class UITests(unittest.TestCase):
 
 
     def test_slap_base_setting_steps_by_point01_and_shows_threshold_score(self):
-        app=self.app; app.scene='settings'
+        app=self.app; app.scene='settings'; app.settings_tab='rules'
         app.config['slap_base']=1.05; app.config['amplitude']=50
         texts=[]
         with patch.object(app,'text',side_effect=lambda text,*args,**kwargs:texts.append(str(text))):
             app.render()
         self.assertIn('正閾值 +50：巴掌 12 分',texts)
-        app.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN,button=1,pos=(1070,266)))
+        app.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN,button=1,pos=(1090,400)))
         self.assertEqual(app.config['slap_base'],1.06)
         app.config['slap_base']=1.1; texts.clear()
         with patch.object(app,'text',side_effect=lambda text,*args,**kwargs:texts.append(str(text))):

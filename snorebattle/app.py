@@ -11,6 +11,7 @@ from .achievements import Achievements,DEFINITIONS
 from .lab_modes import LabMenu
 
 WIDTH,HEIGHT=1280,840
+SETTINGS_CARD_ROWS=12
 BG=(15,22,40); PANEL=(25,37,60); LINE=(53,70,98)
 TEXT=(231,238,249); MUTED=(151,169,194); CYAN=(89,216,211)
 CORAL=(255,146,124); GOLD=(247,204,113); PREVIEW=(220,159,255)
@@ -37,6 +38,15 @@ class App:
         pygame.display.set_caption('Snore Battle｜打呼卡牌對戰 · 基礎版')
         self.canvas=pygame.Surface((WIDTH,HEIGHT))
         self.assets=Assets(root)
+        self.preferences={'sfx_volume':.7}
+        try:
+            saved_preferences=json.loads((self.root/'saves/preferences.json').read_text(encoding='utf-8'))
+            volume=saved_preferences.get('sfx_volume',.7)
+            if not isinstance(volume,bool) and isinstance(volume,(int,float)) and math.isfinite(volume):
+                self.preferences['sfx_volume']=max(0.0,min(1.0,volume))
+        except (OSError,ValueError,TypeError,AttributeError): pass
+        self.assets.set_sfx_volume(self.preferences['sfx_volume'])
+        self.settings_tab='audio'
         self.config,self.catalog=load_data(root)
         settings=self.root/'saves/settings.json'
         if settings.exists():
@@ -189,8 +199,9 @@ class App:
         self.text('SNORE / BATTLE',100,115,56,CYAN)
         self.text('一場關於睡眠、波形與巴掌的卡牌對戰',104,195,25)
         self.text('同機雙人基礎版 · 未來將擴充連線',106,240,18,MUTED)
-        for i,(label,scene) in enumerate((('開始遊戲','setup'),('成就頁面','achievements'),('設定','settings'))):
-            self.button(label,(108,330+i*76,280,58),lambda s=scene:self.set_scene(s),accent=i==0)
+        self.button('開始遊戲',(108,330,280,58),self.start_game,accent=True)
+        self.button('成就頁面',(108,406,280,58),lambda:self.set_scene('achievements'))
+        self.button('設定',(108,482,280,58),lambda:self.set_scene('settings'))
         self.button('測試 AI ／ 回放',(108,558,280,58),lambda:self.set_scene('lab'))
         self.text('操作：滑鼠選牌／按鈕，滾輪捲動手牌，F3 查看紀錄',106,690,18,MUTED)
         self.draw_character(950,430,True)
@@ -212,22 +223,61 @@ class App:
     def adjust_copies(self,key,delta):
         self.catalog[key]['copies']=max(0,min(99,self.catalog[key]['copies']+delta))
 
+    def set_settings_tab(self,tab):
+        self.settings_tab=tab
+        self.deck_offset=0
+
+    def set_sfx_volume(self,volume):
+        self.preferences['sfx_volume']=round(max(0.0,min(1.0,volume)),2)
+        self.assets.set_sfx_volume(self.preferences['sfx_volume'])
+
     def save_settings(self):
-        path=self.root/'saves/settings.json'
-        path.parent.mkdir(parents=True,exist_ok=True)
-        path.write_text(json.dumps(dict(config=self.config,copies={k:c['copies'] for k,c in self.catalog.items()}),
-                                   ensure_ascii=False,indent=2),encoding='utf-8')
-        self.notify('測試設定已儲存。')
+        folder=self.root/'saves'
+        try:
+            folder.mkdir(parents=True,exist_ok=True)
+            (folder/'settings.json').write_text(json.dumps(dict(config=self.config,copies={k:c['copies'] for k,c in self.catalog.items()}),
+                                       ensure_ascii=False,indent=2),encoding='utf-8')
+            (folder/'preferences.json').write_text(json.dumps(self.preferences,ensure_ascii=False,indent=2),encoding='utf-8')
+        except OSError as error:
+            self.notify('儲存失敗：'+str(error)); return
+        self.notify('設定已儲存。')
 
     def settings(self):
-        self.text('對局準備' if self.scene=='setup' else '設定',40,26,32,CYAN)
-        self.text('全部數值與卡牌皆為測試內容；每局共用一副牌。',40,73,18,MUTED)
+        self.text('設定',40,26,32,CYAN)
+        self.text('選擇下方分類調整，完成後按「儲存設定」。',40,73,18,MUTED)
+        for i,(tab,label) in enumerate((('audio','音效'),('rules','對局設定'),('cards','卡牌組成'))):
+            self.button(label,(40+i*210,108,190,40),lambda t=tab:self.set_settings_tab(t),accent=self.settings_tab==tab)
+        {'audio':self.audio_settings,'rules':self.rule_settings,'cards':self.card_settings}[self.settings_tab]()
+        self.text('音效音量即時生效；對局設定與牌堆套用於新對局。按「儲存設定」保留調整。',40,730,17,MUTED)
+        self.button('返回',(40,770,140,46),lambda:self.set_scene('menu'))
+        self.button('儲存設定',(200,770,160,46),self.save_settings)
+
+    def audio_settings(self):
+        self.panel((40,175,1200,285))
+        volume=self.preferences['sfx_volume']
+        self.text('音效音量',70,202,25)
+        self.text(f'{round(volume*100)}%',1050,202,25,GOLD)
+        self.text('選牌、出牌、巴掌與道具音效；不影響背景音樂。',70,245,18,MUTED)
+        self.button('－',(70,290,90,46),lambda:self.set_sfx_volume(volume-.1))
+        self.button('＋',(1080,290,90,46),lambda:self.set_sfx_volume(volume+.1))
+        bar=pygame.Rect(220,307,800,12)
+        pygame.draw.rect(self.canvas,LINE,bar,border_radius=6)
+        if volume>0: pygame.draw.rect(self.canvas,CYAN,(bar.x,bar.y,max(1,int(bar.width*volume)),bar.height),border_radius=6)
+        pygame.draw.circle(self.canvas,GOLD,(bar.x+int(bar.width*volume),bar.centery),10)
+        self.buttons.append((pygame.Rect(bar.x,290,bar.width,46),lambda:self.set_sfx_volume((self.mouse()[0]-bar.x)/bar.width)))
+        self.button('試聽出牌音效',(70,375,220,46),lambda:self.assets.sound('card'))
+        self.button('試聽選牌音效',(310,375,220,46),lambda:self.assets.sound('card_select'))
+        self.text('點選音量條或使用 ＋／－ 調整；0% 為靜音。',560,389,18,MUTED)
+        if not pygame.mixer.get_init(): self.text('目前無可用的音效裝置，仍可儲存音量設定。',70,490,18,MUTED)
+
+    def rule_settings(self):
+        self.panel((40,175,1200,390))
         fields=[('振幅／閾值','amplitude',1),('基礎週期','period',1),('落點間隔','interval',.5),
                 ('遊戲總長度','duration',1),('初始手牌','initial_hand',1),('手牌上限','hand_limit',1),
                 ('預覽長度','preview',1),('巴掌次數','slaps',1),('打呼固定分','snore_score',1),('巴掌底數','slap_base',.01),('打呼回合得分','snore_turn_score',1)]
         for i,(label,key,step) in enumerate(fields):
             col=i%2; row=i//2
-            x=40+col*610; y=114+row*34
+            x=65+col*610; y=195+row*48
             self.text(label,x,y+4,18)
             self.text(f'{self.config[key]:g}',x+250,y+4,18,GOLD)
             self.button('-',(x+350,y,42,32),lambda k=key,d=-step:self.adjust(k,d))
@@ -237,13 +287,15 @@ class App:
         except RuleError:
             threshold_score='超出範圍'
         if len(threshold_score)>18: threshold_score=threshold_score[:12]+'…'
-        self.text(f'正閾值 +{self.config["amplitude"]:g}：巴掌 {threshold_score} 分',650,288,18,GOLD)
-        self.text('共用牌堆組成',40,327,23)
-        self.text('滾輪捲動清單；0 張表示不加入。',320,334,17,MUTED)
-        self.text(f'總張數 {sum(c["copies"] for c in self.catalog.values())}',1030,334,19,GOLD)
+        self.text(f'正閾值 +{self.config["amplitude"]:g}：巴掌 {threshold_score} 分',65,510,18,GOLD)
+
+    def card_settings(self):
+        self.text('共用牌堆組成',40,170,23)
+        self.text('滾輪捲動清單；0 張表示不加入。',320,174,17,MUTED)
+        self.text(f'總張數 {sum(c["copies"] for c in self.catalog.values())}',1030,174,19,GOLD)
         entries=list(self.catalog.items())
-        for i,(key,card) in enumerate(entries[self.deck_offset:self.deck_offset+8]):
-            y=370+i*43
+        for i,(key,card) in enumerate(entries[self.deck_offset:self.deck_offset+SETTINGS_CARD_ROWS]):
+            y=210+i*41
             self.panel((40,y,1200,38),(22,33,53),6)
             self.text(card['category'],54,y+7,17,CATEGORIES[card['category']])
             self.text(card['name'],126,y+7,18)
@@ -251,9 +303,6 @@ class App:
             self.text(str(card['copies']),1090,y+7,18,GOLD)
             self.button('-',(1140,y+3,36,32),lambda k=key:self.adjust_copies(k,-1))
             self.button('+',(1184,y+3,36,32),lambda k=key:self.adjust_copies(k,1))
-        self.button('返回',(40,770,140,46),lambda:self.set_scene('menu'))
-        self.button('儲存設定',(200,770,160,46),self.save_settings)
-        self.button('開始對局',(1040,770,200,46),self.start_game,accent=True)
 
     def achievements(self):
         self.text('成就紀錄',50,40,34,CYAN)
@@ -495,6 +544,8 @@ class App:
         elif index>=self.hand_offset+4:
             self.hand_offset=index-3
         self.select(uid)
+        if self.selected is not None:
+            self.assets.sound('card_select')
 
     def select(self,uid):
         self.selected=None if self.selected==uid else uid
@@ -616,8 +667,8 @@ class App:
                     self.detail_scroll=max(0,self.detail_scroll-event.y)
                 else: self.scroll_hand(-event.y)
             elif self.scene=='lab': self.lab_menu.scroll(-event.y)
-            elif self.scene in ('setup','settings'):
-                self.deck_offset=max(0,min(len(self.catalog)-8,self.deck_offset-event.y))
+            elif self.scene in ('setup','settings') and self.settings_tab=='cards':
+                self.deck_offset=max(0,min(max(0,len(self.catalog)-SETTINGS_CARD_ROWS),self.deck_offset-event.y))
         elif event.type==pygame.MOUSEBUTTONDOWN and event.button==1:
             v=self.viewport
             pos=((event.pos[0]-v.x)*WIDTH/v.width,(event.pos[1]-v.y)*HEIGHT/v.height)

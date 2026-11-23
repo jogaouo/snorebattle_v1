@@ -16,8 +16,9 @@ class Assets:
                 try: self.images[name]=pygame.image.load(str(path)).convert_alpha()
                 except pygame.error: pass
         self.sounds={}
+        self.sfx_volume=1.0
         if pygame.mixer.get_init():
-            for name in ('card','slap','tool'):
+            for name in ('card','card_select','slap','tool'):
                 path=self.root/'audio'/f'{name}.wav'
                 if path.exists():
                     try: self.sounds[name]=pygame.mixer.Sound(str(path))
@@ -34,5 +35,9 @@ class Assets:
         if size not in self.fonts: self.fonts[size]=pygame.font.Font(self.font_path,size)
         return self.fonts[size]
 
+    def set_sfx_volume(self,volume):
+        self.sfx_volume=max(0.0,min(1.0,float(volume)))
+        for sound in self.sounds.values(): sound.set_volume(self.sfx_volume)
+
     def sound(self,name):
-        if name in self.sounds: self.sounds[name].play()
+        if self.sfx_volume>0 and name in self.sounds: self.sounds[name].play()
