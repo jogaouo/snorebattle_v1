@@ -473,20 +473,22 @@ class CoreTests(unittest.TestCase):
 
     def test_good_dream_bonus_applies_to_all_scores_and_survives_slap(self):
         g=self.game(); card=self.give(g,'bonus')
+        bonus=g.catalog['bonus']['effects'][0]['amount']
         self.assertEqual(g.players[0].score,1)
         self.do(g,'to_cards'); self.do(g,'play',card.uid)
         self.skip_turn(g)
-        self.assertEqual(g.players[0].score,5)  # 開局1 + 本回合(1+3)
-        self.assertEqual([e for e in g.events if e['type']=='snore_turn_scored'][-1]['points'],4)
+        self.assertEqual(g.players[0].score,2+bonus)
+        self.assertEqual([e for e in g.events if e['type']=='snore_turn_scored'][-1]['points'],1+bonus)
         g.y=50; self.do(g,'score')
-        self.assertEqual(g.players[0].score,18)  # 行動仍得10+3
+        self.assertEqual(g.players[0].score,12+2*bonus)
         self.skip_turn(g); self.do(g,'slap')
-        self.assertEqual(g.stat('score_bonus',0),3)
-        self.assertEqual(g.players[0].score,22)  # 功能牌加成保留，巴掌後新回合仍得4分
+        self.assertEqual(g.stat('score_bonus',0),bonus)
+        self.assertEqual(g.players[0].score,13+3*bonus)
 
     def test_passive_bonus_stacks_and_disabled_passive_stays_disabled(self):
-        for base,expected in ((1,7),(2,8),(0,0)):
+        for base in (1,2,0):
             g=self.game(snore_turn_score=base)
+            expected=base+2*g.catalog['bonus']['effects'][0]['amount'] if base else 0
             for _ in range(2): g.apply_effect(g.catalog['bonus']['effects'][0])
             before=g.players[0].score
             self.skip_turn(g); self.skip_turn(g)
@@ -497,12 +499,13 @@ class CoreTests(unittest.TestCase):
         g=self.game()
         g.apply_effect(g.catalog['bonus']['effects'][0])
         before=g.players[0].score
-        self.assertEqual(g.award_score(0,2,source='test_new_method'),5)
-        self.assertEqual(g.players[0].score,before+5)
+        bonus=g.catalog['bonus']['effects'][0]['amount']
+        self.assertEqual(g.award_score(0,2,source='test_new_method'),2+bonus)
+        self.assertEqual(g.players[0].score,before+2+bonus)
         event=g.events[-1]
         self.assertEqual(event['type'],'score_awarded')
         self.assertEqual((event['source'],event['base_points'],event['bonus'],event['points']),
-                         ('test_new_method',2,3,5))
+                         ('test_new_method',2,bonus,2+bonus))
         self.assertEqual(event['total'],g.players[0].score)
         self.assertNotIn('both_sides',g.achievements.unlocked)
         self.assertEqual(g.award_score(1,2,source='test_other_player'),2)

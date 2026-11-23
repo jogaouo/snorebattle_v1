@@ -14,6 +14,9 @@ def main():
     parser.add_argument('--smoke',type=int,default=None,help='無視窗驗證指定幀數')
     parser.add_argument('--screenshot')
     parser.add_argument('--battle',action='store_true')
+    parser.add_argument('--replay')
+    parser.add_argument('--bot')
+    parser.add_argument('--human-role',type=int,choices=(0,1),default=0)
     args=parser.parse_args()
     if args.smoke:
         os.environ['SDL_VIDEODRIVER']='dummy'
@@ -26,7 +29,13 @@ def main():
             return 1
         raise
     app=App(ROOT)
-    if args.battle: app.start_game()
+    if args.replay:
+        from snorebattle.lab_modes import start_replay
+        start_replay(app,args.replay)
+    elif args.bot:
+        from snorebattle.lab_modes import start_bot
+        start_bot(app,args.bot,args.human_role)
+    elif args.battle: app.start_game()
     app.run(args.smoke,args.screenshot)
     return 0
 

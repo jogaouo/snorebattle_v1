@@ -7,6 +7,7 @@ from .assets import Assets
 from .core import Game,Command,RuleError,ROLES,load_data
 from .scoring import slap_points
 from .achievements import Achievements,DEFINITIONS
+from .lab_modes import LabMenu
 
 WIDTH,HEIGHT=1280,840
 BG=(15,22,40); PANEL=(25,37,60); LINE=(53,70,98)
@@ -38,6 +39,8 @@ class App:
             except (ValueError,KeyError,TypeError): pass
         self.config.pop('slap_divisor',None)
         self.scene='menu'
+        self.lab_mode=None
+        self.lab_menu=LabMenu(self)
         self.game=None
         self.running=True
         self.buttons=[]
@@ -104,6 +107,10 @@ class App:
         g=self.game
         if self.camera_moving():
             return
+        if self.lab_mode and (self.lab_mode.kind=='replay' or
+                              (self.lab_mode.is_bot_turn() and not self.lab_mode.applying)):
+            return
+        actor,card_uid=g.active,self.selected
         previous_x=g.x
         try:
             g.dispatch(Command(g.active,action,self.selected,g.revision))
@@ -116,6 +123,7 @@ class App:
                 self.camera_target=g.x
                 self.camera_started=pygame.time.get_ticks()
             self.events()
+            if self.lab_mode: self.lab_mode.after_command(actor,action,card_uid)
         except RuleError as error: self.notify(str(error))
 
     def camera_moving(self):
@@ -139,10 +147,13 @@ class App:
             elif event['type']=='tool_used': self.assets.sound('tool')
         self.seen_events=len(self.game.events)
         if self.game.achievements.new:
-            self.notify('成就解鎖：'+'、'.join(self.game.achievements.new))
+            if self.lab_mode is None:
+                self.notify('成就解鎖：'+'、'.join(self.game.achievements.new))
             self.game.achievements.new.clear()
 
     def start_game(self):
+        self.lab_mode=None
+        self.camera_duration=650
         try:
             self.game=Game(deepcopy(self.config),deepcopy(self.catalog),self.root/'saves')
         except (ValueError,KeyError) as error:
@@ -158,17 +169,27 @@ class App:
         self.seen_events=len(self.game.events)
         self.log_open=False
 
+    def restart_match(self):
+        if self.lab_mode and self.lab_mode.kind=='bot':
+            from .lab_modes import start_bot
+            start_bot(self,self.lab_mode.profile_path,self.lab_mode.human_role)
+        else:
+            self.start_game()
+
     def menu(self):
         self.text('SNORE / BATTLE',100,115,56,CYAN)
         self.text('一場關於睡眠、波形與巴掌的卡牌對戰',104,195,25)
         self.text('同機雙人基礎版 · 未來將擴充連線',106,240,18,MUTED)
         for i,(label,scene) in enumerate((('開始遊戲','setup'),('成就頁面','achievements'),('設定','settings'))):
             self.button(label,(108,330+i*76,280,58),lambda s=scene:self.set_scene(s),accent=i==0)
+        self.button('測試 AI ／ 回放',(108,558,280,58),lambda:self.set_scene('lab'))
         self.text('操作：滑鼠選牌／按鈕，滾輪捲動手牌，F3 查看紀錄',106,690,18,MUTED)
         self.draw_character(950,430,True)
         self.text('先把夢做完，再看看誰贏。',816,610,23,GOLD)
 
     def set_scene(self,scene):
+        if self.scene=='battle' and self.lab_mode and self.lab_mode.kind=='bot' and scene!='battle':
+            self.lab_mode.save()
         self.scene=scene
         self.deck_offset=0
 
@@ -365,11 +386,16 @@ class App:
         self.text(f'巴掌 {g.slaps_left} 次',790,30,21,CORAL)
         self.button('紀錄 F3',(1000,25,115,42),self.toggle_log)
         self.button('主選單',(1130,25,110,42),lambda:self.set_scene('menu'))
+        if self.lab_mode: self.lab_mode.banner()
         self.draw_graph()
         self.text(f'x = {g.x:g} / {g.stat("duration"):g}    間隔 {g.stat("interval",g.active):g}',
                   46,432,19,GOLD)
         self.text(f'牌堆 {len(g.draw_pile)}  棄牌 {len(g.discard)}  有效效果 {len(g.effects)}',820,434,17,MUTED)
-        if self.camera_moving():
+        if self.lab_mode and self.lab_mode.kind=='replay':
+            self.lab_mode.controls()
+        elif self.lab_mode and self.lab_mode.is_bot_turn():
+            self.text('AI 操作中…',48,480,21,CYAN)
+        elif self.camera_moving():
             self.text(f'鏡頭移動中 → {ROLES[g.active]} 行動階段',48,480,21,CYAN)
         elif g.phase=='landing':
             self.text('從上一個位置前進，再取得波形上的落點。',48,480,20)
@@ -398,8 +424,11 @@ class App:
             a,b=[p.score for p in g.players]
             result='平手' if a==b else ROLES[0 if a>b else 1]+' 獲勝'
             self.text('對局結束：'+result,48,480,27,GOLD)
-            self.button('再玩一場',(1010,475,225,46),self.start_game,accent=True)
-        self.draw_hand()
+            self.button('再玩一場',(1010,475,225,46),self.restart_match,accent=True)
+        if self.lab_mode and self.lab_mode.kind=='bot' and self.lab_mode.is_bot_turn():
+            self.text('AI 的手牌不公開',205,540,19,MUTED)
+        else:
+            self.draw_hand()
         self.draw_details()
         self.draw_character(105,660,False)
         self.draw_character(1175,660,True)
@@ -437,7 +466,10 @@ class App:
                 selected=card.uid==self.selected
                 self.panel(rect,(43,62,82) if selected else PANEL)
                 accent=CATEGORIES[definition['category']]
-                pygame.draw.rect(self.canvas,accent if selected else LINE,rect,2,border_radius=14)
+                upcoming=(self.lab_mode is not None and self.lab_mode.kind=='replay'
+                          and self.lab_mode.upcoming_uid==card.uid)
+                border=GOLD if upcoming else accent if selected else LINE
+                pygame.draw.rect(self.canvas,border,rect,3 if upcoming else 2,border_radius=14)
                 size=22
                 while size>15 and self.assets.font(size).size(definition['name'])[0]>100:
                     size-=1
@@ -534,13 +566,14 @@ class App:
         self.button('關閉 F3',(990,724,180,42),self.toggle_log)
 
     def render(self):
+        if self.scene=='battle' and self.lab_mode: self.lab_mode.tick()
         self.buttons=[]
         self.update_camera()
         self.canvas.fill(BG)
         if 'background' in self.assets.images:
             self.canvas.blit(pygame.transform.smoothscale(self.assets.images['background'],(WIDTH,HEIGHT)),(0,0))
         {'menu':self.menu,'setup':self.settings,'settings':self.settings,
-         'achievements':self.achievements,'battle':self.battle}[self.scene]()
+         'achievements':self.achievements,'battle':self.battle,'lab':self.lab_menu.draw}[self.scene]()
         if self.scene=='battle' and self.log_open: self.log_panel()
         if self.message and pygame.time.get_ticks()<self.message_until:
             self.panel((300,7,680,46),(66,65,46),9)
@@ -554,12 +587,18 @@ class App:
         pygame.display.flip()
 
     def handle(self,event):
-        if event.type==pygame.QUIT: self.running=False
+        if event.type==pygame.QUIT:
+            if self.lab_mode and self.lab_mode.kind=='bot': self.lab_mode.save()
+            self.running=False
         elif event.type==pygame.KEYDOWN:
+            if self.scene=='battle' and self.lab_mode and self.lab_mode.kind=='replay' and event.key in (pygame.K_SPACE,pygame.K_LEFT,pygame.K_RIGHT):
+                if event.key==pygame.K_SPACE: self.lab_mode.toggle()
+                else: self.lab_mode.move(-1 if event.key==pygame.K_LEFT else 1)
+                return
             if event.key==pygame.K_F3 and self.scene=='battle': self.toggle_log()
             elif event.key==pygame.K_ESCAPE:
                 if self.log_open: self.log_open=False
-                else: self.scene='menu'
+                else: self.set_scene('menu')
             elif event.key in (pygame.K_LEFT,pygame.K_RIGHT) and self.scene=='battle':
                 self.scroll_hand(-1 if event.key==pygame.K_LEFT else 1)
         elif event.type==pygame.MOUSEWHEEL and not self.log_open:
@@ -567,6 +606,7 @@ class App:
                 if pygame.Rect(880,540,225,275).collidepoint(self.mouse()):
                     self.detail_scroll=max(0,self.detail_scroll-event.y)
                 else: self.scroll_hand(-event.y)
+            elif self.scene=='lab': self.lab_menu.scroll(-event.y)
             elif self.scene in ('setup','settings'):
                 self.deck_offset=max(0,min(len(self.catalog)-8,self.deck_offset-event.y))
         elif event.type==pygame.MOUSEBUTTONDOWN and event.button==1:
