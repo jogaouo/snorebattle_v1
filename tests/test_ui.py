@@ -40,6 +40,7 @@ class UITests(unittest.TestCase):
         with patch('pygame.display.get_desktop_sizes',return_value=[(1366,768)]):
             app=App(ROOT)
         self.app=app
+        app.preferences['tutorial_done']=True
         self.assertEqual(app.screen.get_size(),initial_window_size((1366,768)))
         self.assertEqual(app.canvas.get_size(),(1280,840))
         self.assertFalse(app.screen.get_flags() & pygame.FULLSCREEN)
