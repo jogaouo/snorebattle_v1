@@ -95,8 +95,8 @@ class CoreTests(unittest.TestCase):
         base=Wave(50,12)
         for x in (2,2+1e-6,6-1e-6,6,6+1e-6):
             self.assertAlmostEqual(wave.value(x),base.value(x),places=7)
-        self.assertAlmostEqual(wave.value(2.5),base.value(2.5)*1.5)
-        self.assertAlmostEqual(wave.value(5.5),base.value(5.5)*1.5)
+        self.assertAlmostEqual(wave.value(2.25),base.value(2.25)*1.5)
+        self.assertAlmostEqual(wave.value(5.75),base.value(5.75)*1.5)
         self.assertAlmostEqual(wave.value(3),base.value(3)*2)
 
     def test_reset_fades_and_preserves_history(self):
@@ -106,8 +106,8 @@ class CoreTests(unittest.TestCase):
         self.assertAlmostEqual(wave.value(1),history)
         base=Wave(50,12)
         self.assertAlmostEqual(wave.value(2),base.value(2)*2)
-        self.assertAlmostEqual(wave.value(2.5),base.value(2.5)*1.5)
-        self.assertAlmostEqual(wave.value(3),base.value(3))
+        self.assertAlmostEqual(wave.value(2.25),base.value(2.25)*1.5)
+        self.assertAlmostEqual(wave.value(2.5),base.value(2.5))
 
     def test_overlapping_and_same_position_transitions(self):
         wave=Wave(50,12)

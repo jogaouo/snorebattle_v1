@@ -9,7 +9,7 @@
   "snore_score": 10,
   "slaps": 3,
   "seed": null,
-  "wave_fade": 1.0,
+  "wave_fade": 0.5,
   "snore_turn_score": 1,
   "slap_base": 1.05
 }

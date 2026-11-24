@@ -8,7 +8,7 @@ def smoothstep(value):
     return t*t*(3-2*t)
 
 class Wave:
-    def __init__(self, amplitude, period, fade=1.0):
+    def __init__(self, amplitude, period, fade=0.5):
         self.amplitude, self.period = amplitude, period
         self.fade = max(0.0, float(fade))
         self.versions = [(float('-inf'), [])]

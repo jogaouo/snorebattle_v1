@@ -12,7 +12,7 @@ PANEL=(25,37,60)
 def demo_game(role):
     config=dict(amplitude=50,period=12,interval=1.5,duration=24,
                 initial_hand=3,hand_limit=3,preview=9,slaps=2,
-                snore_score=10,snore_turn_score=1,slap_base=1.05,wave_fade=1)
+                snore_score=10,snore_turn_score=1,slap_base=1.05,wave_fade=0.5)
     catalog={
         'ripple_reverse':dict(id='ripple_reverse',name='夢中逆流',category='波形',copies=5,
             description='未來18秒疊加一個起始朝下的波；只改變未來。',
