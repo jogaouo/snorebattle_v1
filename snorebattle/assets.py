@@ -10,6 +10,7 @@ class Assets:
                     self.root/'fonts/font.ttf']
         self.font_path=next((str(p) for p in candidates if p.exists()),None)
         self.images={}
+        self.tutorial_images={}
         for name in ('snorer','slapper','background'):
             path=self.root/'images'/f'{name}.png'
             if path.exists():
@@ -30,6 +31,14 @@ class Assets:
                     pygame.mixer.music.set_volume(.35)
                     pygame.mixer.music.play(-1)
                 except pygame.error: pass
+
+    def tutorial_image(self,name):
+        if not name:return None
+        if name not in self.tutorial_images:
+            path=self.root/'tutorial'/f'{name}.png'
+            try:self.tutorial_images[name]=pygame.image.load(str(path)).convert_alpha() if path.exists() else None
+            except pygame.error:self.tutorial_images[name]=None
+        return self.tutorial_images[name]
 
     def font(self,size):
         if size not in self.fonts: self.fonts[size]=pygame.font.Font(self.font_path,size)

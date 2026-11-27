@@ -1,0 +1,14 @@
+{
+  "difficulty": "medium",
+  "frozen_date": "2026-11-25",
+  "models": {
+    "snorer": "tight_0",
+    "slapper": "loose_1"
+  },
+  "sha256": {
+    "snorebattle/ai/policy.py": "390a044765f9ccb21b9ba44ee3c26b7cc6c66535b3d4f6ad098b48390e3a1a96",
+    "snorebattle/ai/environment.py": "aeb94ff8ac2fbbad08ca395cf0665a53b1793d36b54511ee4d252b04782fdd56",
+    "data/ai/loose_1.json": "475b8398f609d076059a5cf22d85e5dbd8f8bab046179ff9559fc9640d4529d6",
+    "data/ai/tight_0.json": "9ea836a4b612157ec0514a4a9a0cc37c21f7ea3f5a6bf98b93b7b9db1c0fde64"
+  }
+}

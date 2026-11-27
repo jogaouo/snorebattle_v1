@@ -1,0 +1,821 @@
+{
+  "schema": 1,
+  "lessons": [
+    {
+      "id": "snorer",
+      "title": "關於打呼者",
+      "group": "snorer",
+      "role": 0,
+      "scenario": {
+        "hands": {
+          "0": [
+            "ripple_reverse",
+            "quiet",
+            "forecast"
+          ],
+          "1": [
+            "forecast",
+            "pocket",
+            "quiet"
+          ]
+        },
+        "draw_order": [
+          "swell",
+          "ripple",
+          "quiet",
+          "forecast",
+          "long"
+        ],
+        "config": {
+          "wave_amplitude": 30
+        }
+      },
+      "steps": [
+        {
+          "kind": "observe",
+          "presentation": "role_intro",
+          "title": "這一段，你來當打呼者！",
+          "hint": "你的任務，是想辦法累積分數，讓這場呼聲持續下去。",
+          "next_label": "下一步"
+        },
+        {
+          "kind": "showcase",
+          "presentation": "action_banner",
+          "duration_ms": 2100,
+          "title": "行動階段",
+          "hint": "先看看這個階段能做什麼。"
+        },
+        {
+          "kind": "showcase",
+          "presentation": "locate_score",
+          "duration_ms": 5500,
+          "title": "取得分數，就在這裡",
+          "hint": "「取得分數」是行動階段可以選擇的行動之一。先記住它的位置，等等再看看為什麼不能按。"
+        },
+        {
+          "kind": "observe",
+          "focus": "score_button",
+          "title": "咦，現在怎麼不能得分？",
+          "hint": "在行動階段，想替打呼者加分，就要按「取得分數」。不過它現在灰灰的……為什麼不能按呢？"
+        },
+        {
+          "kind": "observe",
+          "focus": "landing",
+          "title": "先看看，你落在哪裡？",
+          "hint": "每個回合，玩家都會在曲線上「落點」。金色圓點就是你現在的位置，旁邊的數字就是高度。現在是 {height}。"
+        },
+        {
+          "kind": "observe",
+          "focus": "thresholds",
+          "title": "跑到亮起來的地方，就有機會！",
+          "hint": "落點大於等於 +50，或小於等於 -50，就能取得分數；剛好 +50、-50 也可以！現在的落點還在中間，所以按鈕暫時不能用。"
+        },
+        {
+          "kind": "info",
+          "title": "記住：落在這兩個區域才能得分",
+          "body": "高度大於等於 +50，或小於等於 -50，就能選擇得分（包含剛好 +50、-50）。現在是 {height}，還在中間；接著用卡牌準備下一次機會吧。",
+          "emphasis": "高度 ≥ +50｜高度 ≤ -50（包含邊界）",
+          "presentation": "story"
+        },
+        {
+          "kind": "command",
+          "action": "to_cards",
+          "hint": "現在還拿不到分數……沒關係，我們用一張牌，替下次回來準備機會。按「前往出牌階段」吧！"
+        },
+        {
+          "kind": "select",
+          "card": "ripple_reverse",
+          "hint": "試試「夢中逆流」！點一下，看看紫色的未來曲線。這次先替下個回合鋪路。",
+          "quiz": false
+        },
+        {
+          "kind": "command",
+          "action": "play",
+          "hint": "看到未來變了嗎？按「出牌並補滿」，把這個計畫交給下一回合！",
+          "card": "ripple_reverse"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "play",
+              "card": "forecast"
+            }
+          ],
+          "hint": "先讓對手行動一下……等等回來，看看剛才那張牌帶來什麼變化。"
+        },
+        {
+          "kind": "info",
+          "title": "下一次落點可以得分了",
+          "body": "現在落點是 {height}，已達到閾值。你剛才出的牌，製造了這次得分機會。",
+          "emphasis": "符合條件 → 取得分數",
+          "presentation": "story"
+        },
+        {
+          "kind": "command",
+          "action": "score",
+          "hint": "成功了！這次已經跑到閾值外。按「取得分數」，收下你準備好的機會吧！"
+        },
+        {
+          "kind": "observe",
+          "focus": "next_landing",
+          "title": "又輪到你了……下一次呢？",
+          "hint": "這次拿到分數了！不過看下一次輪到你的落點，還在 ±50 之間，不能得分呢……用手牌替下個回合創造機會吧！",
+          "next_label": "下一步"
+        },
+        {
+          "kind": "command",
+          "action": "to_cards",
+          "hint": "分數到手了！不過下一次呢？我們再準備一張牌。"
+        },
+        {
+          "kind": "observe",
+          "presentation": "role_intro",
+          "title": "接下來，換你親自操作了！",
+          "hint": "接下來不指定答案，換你自己選牌！看看每張牌的紫色預覽，找出能讓下一次落點達到得分區域的那張，再按「出牌並補滿」確認。",
+          "footer": "選錯也沒關係，再想想、換一張試試吧！"
+        },
+        {
+          "kind": "select",
+          "card": "swell",
+          "hint": "這次交給你！三張牌都可以選。看完紫色預覽，再按「出牌並補滿」確認你的答案。",
+          "quiz": true,
+          "confirm_on_play": true
+        },
+        {
+          "kind": "command",
+          "action": "play",
+          "hint": "就是它！把牌打出去，等等看看你的計畫有沒有成功。",
+          "card": "swell"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "play",
+              "card": "pocket"
+            }
+          ],
+          "hint": "對手行動中……準備好迎接你剛才安排的下一次落點了嗎？"
+        },
+        {
+          "kind": "command",
+          "action": "score",
+          "hint": "做到了！落在負的那一側，也一樣能得分。按「取得分數」吧！"
+        },
+        {
+          "kind": "finish",
+          "hint": "之後作為打呼者時，靠著出牌來改變波型與建立優勢吧！",
+          "presentation": "role_intro",
+          "title": "成功了！",
+          "footer": "把握每一次落點，創造屬於你的得分機會。",
+          "next_label": "完成教學"
+        }
+      ]
+    },
+    {
+      "id": "slapper",
+      "title": "關於打巴掌者",
+      "group": "slapper",
+      "role": 1,
+      "scenario": {
+        "hands": {
+          "0": [
+            "pocket",
+            "forecast",
+            "quiet"
+          ],
+          "1": [
+            "swell",
+            "quiet",
+            "forecast"
+          ]
+        },
+        "draw_order": [
+          "long",
+          "forecast",
+          "invert",
+          "ripple",
+          "pocket",
+          "quiet",
+          "long"
+        ],
+        "config": {
+          "slaps": 2,
+          "slap_base": 1.04
+        }
+      },
+      "steps": [
+        {
+          "kind": "observe",
+          "presentation": "role_intro",
+          "title": "這一段，你來當打巴掌者！",
+          "hint": "在行動階段，按「打巴掌！」就能得分。不過……什麼時候能打？又能拿到多少分呢？",
+          "footer": "先看看對手打呼，再來找你的出手機會。",
+          "next_label": "下一步"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "play",
+              "card": "pocket"
+            }
+          ],
+          "hint": "先讓對手行動……等等再來看看你的落點。"
+        },
+        {
+          "kind": "showcase",
+          "presentation": "locate_slap",
+          "duration_ms": 5500,
+          "title": "打巴掌，就在這裡！",
+          "hint": "這就是行動階段的「打巴掌！」按鈕。先記住它的位置，再看看出手的條件。"
+        },
+        {
+          "kind": "observe",
+          "focus": "slap_button",
+          "title": "現在能打巴掌了呢！",
+          "hint": "按鈕已經亮起來了！不過先別急著出手，我們看看這次為什麼能打。"
+        },
+        {
+          "kind": "observe",
+          "focus": "landing",
+          "title": "看看你這次落在哪裡？",
+          "hint": "每個回合都會沿著波形前進，取得一個「落點」。金色圓點就是你現在的位置，旁邊的數字是落點高度。現在是 {height}。"
+        },
+        {
+          "kind": "observe",
+          "focus": "positive_landing",
+          "title": "落在零的上方，就能出手！",
+          "hint": "打巴掌者只要落點是正值，就可以打巴掌。現在是 {height}，在零的上方，所以按鈕亮起來了！剛好 0 還不能打喔。"
+        },
+        {
+          "kind": "showcase",
+          "presentation": "locate_chances",
+          "duration_ms": 5000,
+          "title": "剩餘的巴掌機會，在這裡！",
+          "hint": "先記住剩餘次數在戰鬥畫面上的位置。"
+        },
+        {
+          "kind": "observe",
+          "focus": "slap_chances",
+          "title": "等等，機會只有兩次！",
+          "hint": "這裡顯示剩餘的巴掌次數，現在還有 {slaps_left} 次。每打一次就少一次，要挑值得出手的時機呢。"
+        },
+        {
+          "kind": "observe",
+          "presentation": "role_intro",
+          "title": "同樣一巴掌，越高越有價值！",
+          "hint": "分數以固定倍率的落點高度次方計算，因此落點越高，得分越多！現在高度 {height}，打下去能拿 {slap_points} 分。",
+          "footer": "高度越高，分數會成長得越快！",
+          "next_label": "下一步"
+        },
+        {
+          "kind": "observe",
+          "presentation": "role_intro",
+          "title": "先留下這次機會吧！",
+          "hint": "現在雖然能打，但分數還不高。機會只有兩次……我們先不出手，用卡牌替下一次落點準備更高的波吧！",
+          "footer": "先出牌創造機會，再把巴掌用在更值得的落點。",
+          "next_label": "下一步"
+        },
+        {
+          "kind": "info",
+          "title": "打巴掌前，先記住這幾件事",
+          "body": "落點大於 0 才能打巴掌，每場只有兩次機會。分數以固定倍率的落點高度次方計算，因此越高越好！這次先保留機會，用卡牌準備更高的落點。",
+          "emphasis": "正值才能打｜只有兩次機會｜越高得分越多",
+          "presentation": "image_card",
+          "image": "slap_scoring"
+        },
+        {
+          "kind": "command",
+          "action": "to_cards",
+          "hint": "這次先不打。按「前往出牌階段」，準備更好的機會。"
+        },
+        {
+          "kind": "select",
+          "card": "swell",
+          "hint": "點選「呼聲加倍」。注意金色虛線標記的「下次輪到你」，比較加倍後的高度。",
+          "quiz": false
+        },
+        {
+          "kind": "command",
+          "action": "play",
+          "hint": "比較預覽後，按「出牌並補滿」。",
+          "card": "swell"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "score"
+            },
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "play",
+              "card": "forecast"
+            }
+          ],
+          "hint": "先讓對手行動……等等再來看看你的落點。"
+        },
+        {
+          "kind": "command",
+          "action": "slap",
+          "hint": "現在落點比剛才更高。請按「打巴掌！」，觀察得分與波型重置。"
+        },
+        {
+          "kind": "info",
+          "title": "打完巴掌之後",
+          "body": "巴掌會清除可重置的效果和道具，直接換人，不再進入你的出牌階段。部分功能效果仍會保留。",
+          "emphasis": "打巴掌 → 直接換打呼者",
+          "presentation": "story"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "play",
+              "card": "long"
+            }
+          ],
+          "hint": "先讓對手行動……等等再來看看你的落點。"
+        },
+        {
+          "kind": "info",
+          "title": "再創造一次出手機會",
+          "body": "這次落點是負值，不能打巴掌。接下來不指定答案，請用手上的牌讓自己的下一次落點變成正值。",
+          "emphasis": "先看預覽，再決定出牌",
+          "presentation": "story"
+        },
+        {
+          "kind": "command",
+          "action": "to_cards",
+          "hint": "先進入出牌階段，再比較手上的牌。"
+        },
+        {
+          "kind": "select",
+          "card": "invert",
+          "hint": "考考你：哪張牌能讓自己的下一次負值落點變成正值？可點選手牌比較預覽。",
+          "quiz": true
+        },
+        {
+          "kind": "command",
+          "action": "play",
+          "hint": "選對了！按「出牌並補滿」，準備下一次出手。",
+          "card": "invert"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "score"
+            },
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "play",
+              "card": "forecast"
+            }
+          ],
+          "hint": "先讓對手行動……等等再來看看你的落點。"
+        },
+        {
+          "kind": "command",
+          "action": "slap",
+          "hint": "負值已變成正值。請打巴掌，完成第二次出手。"
+        },
+        {
+          "kind": "finish",
+          "hint": "作為打巴掌者時，透過出牌來讓自己落在高點，或取得優勢吧！",
+          "presentation": "role_intro",
+          "title": "成功了！",
+          "footer": "把握有限的巴掌機會，挑選值得出手的落點。",
+          "next_label": "完成教學"
+        }
+      ]
+    },
+    {
+      "id": "cards_wave",
+      "title": "改變波型的牌",
+      "group": "cards",
+      "role": 0,
+      "scenario": {
+        "hands": {
+          "0": [
+            "ripple",
+            "swell",
+            "forecast"
+          ],
+          "1": [
+            "forecast",
+            "pocket",
+            "quiet"
+          ]
+        },
+        "draw_order": [
+          "quiet",
+          "long",
+          "forecast",
+          "ripple"
+        ],
+        "config": {}
+      },
+      "steps": [
+        {
+          "kind": "info",
+          "title": "疊波和加倍不一樣",
+          "body": "夢中漣漪是在原本波型上加一個波；呼聲加倍則把當時整體波型放大。兩者都只影響未來。",
+          "emphasis": "漣漪：相加｜加倍：相乘",
+          "presentation": "story"
+        },
+        {
+          "kind": "command",
+          "action": "to_cards",
+          "hint": "先進入出牌階段，試試疊加一個波。"
+        },
+        {
+          "kind": "select",
+          "card": "ripple",
+          "hint": "點選「夢中漣漪」，看紫色預覽如何改變曲線。",
+          "quiz": false
+        },
+        {
+          "kind": "command",
+          "action": "play",
+          "hint": "比較預覽後，按「出牌並補滿」。",
+          "card": "ripple"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "skip"
+            }
+          ],
+          "hint": "對手固定略過，讓你觀察剛才疊加的波型。"
+        },
+        {
+          "kind": "observe",
+          "hint": "目前曲線已經包含漣漪。接著再把整體波型放大。"
+        },
+        {
+          "kind": "command",
+          "action": "to_cards",
+          "hint": "進入出牌階段。"
+        },
+        {
+          "kind": "select",
+          "card": "swell",
+          "hint": "點選「呼聲加倍」。比較原波型與預覽線：放大的是目前的整體波型。",
+          "quiz": false
+        },
+        {
+          "kind": "command",
+          "action": "play",
+          "hint": "比較預覽後，按「出牌並補滿」。",
+          "card": "swell"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "skip"
+            }
+          ],
+          "hint": "對手正在按照固定劇本操作，請觀察它的出牌與換人。"
+        },
+        {
+          "kind": "finish",
+          "hint": "漣漪先加進去，之後的加倍會一起放大它。波型效果會依出牌順序計算。"
+        }
+      ],
+      "summary": "夢中漣漪、呼聲加倍"
+    },
+    {
+      "id": "cards_advantage",
+      "title": "建立優勢的功能牌",
+      "group": "cards",
+      "role": 0,
+      "scenario": {
+        "hands": {
+          "0": [
+            "pocket",
+            "forecast",
+            "quiet"
+          ],
+          "1": [
+            "forecast",
+            "pocket",
+            "quiet"
+          ]
+        },
+        "draw_order": [
+          "ripple",
+          "swell",
+          "quiet",
+          "long"
+        ],
+        "config": {
+          "preview": 2
+        }
+      },
+      "steps": [
+        {
+          "kind": "info",
+          "title": "功能牌不一定改變曲線",
+          "body": "睡衣口袋增加手牌上限；預知夢增加自己可見的未來範圍。這些優勢不是立即得分，而是增加後續選擇。",
+          "emphasis": "更多手牌｜看得更遠",
+          "presentation": "story"
+        },
+        {
+          "kind": "command",
+          "action": "to_cards",
+          "hint": "先進入出牌階段。"
+        },
+        {
+          "kind": "select",
+          "card": "pocket",
+          "hint": "點選「睡衣口袋」。出牌後觀察手牌數量與上限。",
+          "quiz": false
+        },
+        {
+          "kind": "command",
+          "action": "play",
+          "hint": "比較預覽後，按「出牌並補滿」。",
+          "card": "pocket"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "skip"
+            }
+          ],
+          "hint": "對手正在按照固定劇本操作，請觀察它的出牌與換人。"
+        },
+        {
+          "kind": "observe",
+          "hint": "手牌上限現在是 {hand_limit}，出牌後也補到了新上限。接著看看視野如何增加。"
+        },
+        {
+          "kind": "command",
+          "action": "to_cards",
+          "hint": "進入出牌階段。"
+        },
+        {
+          "kind": "select",
+          "card": "forecast",
+          "hint": "點選「預知夢」。這張牌不改高度，會增加自己能看到的未來。",
+          "quiz": false
+        },
+        {
+          "kind": "command",
+          "action": "play",
+          "hint": "比較預覽後，按「出牌並補滿」。",
+          "card": "forecast"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "skip"
+            }
+          ],
+          "hint": "對手正在按照固定劇本操作，請觀察它的出牌與換人。"
+        },
+        {
+          "kind": "finish",
+          "hint": "可見未來範圍現在是 {preview}。手牌上限與視野這些功能效果，不會被巴掌清除。"
+        }
+      ],
+      "summary": "睡衣口袋、預知夢"
+    },
+    {
+      "id": "cards_time",
+      "title": "改變時間的功能牌",
+      "group": "cards",
+      "role": 0,
+      "scenario": {
+        "hands": {
+          "0": [
+            "fast",
+            "long",
+            "quiet"
+          ],
+          "1": [
+            "forecast",
+            "pocket",
+            "quiet"
+          ]
+        },
+        "draw_order": [
+          "ripple",
+          "swell",
+          "quiet",
+          "forecast"
+        ],
+        "config": {
+          "duration": 9,
+          "preview": 12
+        }
+      },
+      "steps": [
+        {
+          "kind": "info",
+          "title": "間隔和終點是不同的東西",
+          "body": "快一拍縮短每次落點前進的距離；漫漫長夜把整局終點延後。這裡的時間是橫軸值，不是現實等待的秒數。",
+          "emphasis": "間隔：每次走多遠｜總長：何時結束",
+          "presentation": "story"
+        },
+        {
+          "kind": "command",
+          "action": "to_cards",
+          "hint": "先進入出牌階段。"
+        },
+        {
+          "kind": "select",
+          "card": "fast",
+          "hint": "點選「快一拍」。觀察預計的下次落點位置。",
+          "quiz": false
+        },
+        {
+          "kind": "command",
+          "action": "play",
+          "hint": "比較預覽後，按「出牌並補滿」。",
+          "card": "fast"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "skip"
+            }
+          ],
+          "hint": "對手正在按照固定劇本操作，請觀察它的出牌與換人。"
+        },
+        {
+          "kind": "observe",
+          "hint": "落點間隔已變成 {interval}；雙方每次前進的距離都變短了。"
+        },
+        {
+          "kind": "command",
+          "action": "to_cards",
+          "hint": "接著進入出牌階段，延長整局終點。"
+        },
+        {
+          "kind": "select",
+          "card": "long",
+          "hint": "點選「漫漫長夜」。出牌後注意紅色終點線與總長度。",
+          "quiz": false
+        },
+        {
+          "kind": "command",
+          "action": "play",
+          "hint": "比較預覽後，按「出牌並補滿」。",
+          "card": "long"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "skip"
+            }
+          ],
+          "hint": "對手正在按照固定劇本操作，請觀察它的出牌與換人。"
+        },
+        {
+          "kind": "finish",
+          "hint": "總長度現在是 {duration}。改間隔會改落點位置，改總長則改變對局結束的位置。"
+        }
+      ],
+      "summary": "快一拍、漫漫長夜"
+    },
+    {
+      "id": "cards_special",
+      "title": "改變戰局的特殊牌",
+      "group": "cards",
+      "role": 0,
+      "scenario": {
+        "hands": {
+          "0": [
+            "blackout",
+            "forecast",
+            "quiet"
+          ],
+          "1": [
+            "forecast",
+            "pocket",
+            "quiet"
+          ]
+        },
+        "draw_order": [
+          "ripple",
+          "swell",
+          "quiet"
+        ],
+        "config": {}
+      },
+      "steps": [
+        {
+          "kind": "info",
+          "title": "關燈遮住資訊，不會停止對局",
+          "body": "關燈讓對手暫時看不見波型；高度和得分判定仍正常。出牌後會切到受影響的對手視角，讓你觀察差別。",
+          "emphasis": "看不見，不代表不能行動",
+          "presentation": "story"
+        },
+        {
+          "kind": "command",
+          "action": "to_cards",
+          "hint": "進入出牌階段。"
+        },
+        {
+          "kind": "select",
+          "card": "blackout",
+          "hint": "點選「關燈」，然後出牌。",
+          "quiz": false
+        },
+        {
+          "kind": "command",
+          "action": "play",
+          "hint": "比較預覽後，按「出牌並補滿」。",
+          "card": "blackout"
+        },
+        {
+          "kind": "observe",
+          "hint": "現在是對手視角：波型與高度被遮住，但回合仍然可以繼續。"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "skip"
+            }
+          ],
+          "hint": "對手即使被關燈，也可以進入出牌階段並略過。"
+        },
+        {
+          "kind": "observe",
+          "hint": "回到你的視角，仍然看得到波型，因為關燈的目標是對手。接著讓時間前進到效果結束。"
+        },
+        {
+          "kind": "auto",
+          "actions": [
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "skip"
+            },
+            {
+              "action": "to_cards"
+            },
+            {
+              "action": "skip"
+            }
+          ],
+          "hint": "雙方依劇本略過，讓落點前進，觀察關燈效果到期。"
+        },
+        {
+          "kind": "finish",
+          "hint": "關燈已到期，雙方都能看見波型。特殊牌可以改變資訊條件，不一定直接改變波型或分數。"
+        }
+      ],
+      "summary": "關燈"
+    }
+  ]
+}

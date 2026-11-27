@@ -6,8 +6,7 @@ from unittest.mock import patch
 from types import SimpleNamespace
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-BOT=ROOT.parent/'snorebot'
-sys.path[:0]=[str(ROOT),str(ROOT/'.vendor'),str(BOT)]
+sys.path[:0]=[str(ROOT),str(ROOT/'.vendor')]
 os.environ['SDL_VIDEODRIVER']='dummy';os.environ['SDL_AUDIODRIVER']='dummy'
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT']='1'
 import pygame
@@ -15,8 +14,22 @@ from snorebattle.app import App
 from snorebattle.lab_modes import start_bot,start_replay,install_game
 from snorebattle.replay import state_digest,Recorder
 from snorebattle.core import Game,Command
-from botlab.policy import profile
-from botlab.runner import play
+from snorebattle.ai.policy import profile,Policy
+from snorebattle.ai.environment import observe,stable_seed
+from copy import deepcopy
+
+
+def play(config,catalog,profiles,seed,*,max_commands=1000,replay_path):
+    """只建立回放測試素材，不依賴外部實驗工具。"""
+    game=Game(deepcopy(config),deepcopy(catalog),seed=seed)
+    recorder=Recorder(game)
+    agents=[Policy(p,stable_seed(seed,i)) for i,p in enumerate(profiles)]
+    for _ in range(max_commands):
+        if game.phase=='ended':break
+        action,uid=agents[game.active].choose(observe(game))
+        command=Command(game.active,action,uid,game.revision)
+        game.dispatch(command);recorder.append(game,command)
+    recorder.save(replay_path,game)
 
 class LabModeTests(unittest.TestCase):
     def tearDown(self):pygame.quit()

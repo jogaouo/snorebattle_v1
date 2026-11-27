@@ -106,7 +106,7 @@ class Game:
         self.role_used = False
         self.tool_used = False
         self.effects = []
-        self.wave = Wave(config['amplitude'], config['period'], config.get('wave_fade',0.5))
+        self.wave = Wave(config.get('wave_amplitude',config['amplitude']), config['period'], config.get('wave_fade',0.5))
         self.slaps_left = config['slaps']
         self.draw_pile, self.discard = [], []
         self.events = []

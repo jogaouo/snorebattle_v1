@@ -49,8 +49,8 @@ class UITests(unittest.TestCase):
         click=(round(v.x+200*v.width/1280),round(v.y+355*v.height/840))
         with patch('snorebattle.app.Game',side_effect=lambda config,catalog,save_dir:Game(config,catalog,seed=17)):
             app.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN,button=1,pos=click))
-        self.assertEqual(app.scene,'battle')
-        self.assertEqual(app.game.phase,'action')
+        self.assertEqual(app.scene,'singleplayer')
+        self.assertIsNone(app.game)
 
     def test_audio_volume_persists_separately_and_card_plays_once_on_success(self):
         import json,shutil,tempfile
@@ -302,19 +302,19 @@ class UITests(unittest.TestCase):
                             for rect,fn in app.buttons if rect.top==576))
 
 
-    def test_slap_base_setting_steps_by_point01_and_shows_threshold_score(self):
+    def test_slap_base_setting_steps_by_point01_without_threshold_note(self):
         app=self.app; app.scene='settings'; app.settings_tab='rules'
         app.config['slap_base']=1.05; app.config['amplitude']=50
         texts=[]
         with patch.object(app,'text',side_effect=lambda text,*args,**kwargs:texts.append(str(text))):
             app.render()
-        self.assertIn('正閾值 +50：巴掌 12 分',texts)
-        app.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN,button=1,pos=(1090,400)))
+        self.assertFalse(any('正閾值' in text for text in texts))
+        app.handle(pygame.event.Event(pygame.MOUSEBUTTONDOWN,button=1,pos=(480,400)))
         self.assertEqual(app.config['slap_base'],1.06)
         app.config['slap_base']=1.1; texts.clear()
         with patch.object(app,'text',side_effect=lambda text,*args,**kwargs:texts.append(str(text))):
             app.render()
-        self.assertIn('正閾值 +50：巴掌 118 分',texts)
+        self.assertFalse(any('正閾值' in text for text in texts))
 
 
     def test_height_label_is_near_marker_and_hidden_by_blackout(self):

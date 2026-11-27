@@ -38,13 +38,16 @@ class App:
         pygame.display.set_caption('Snore Battle｜打呼卡牌對戰 · 基礎版')
         self.canvas=pygame.Surface((WIDTH,HEIGHT))
         self.assets=Assets(root)
-        self.preferences={'sfx_volume':.7,'tutorial_done':False}
+        self.preferences={'sfx_volume':.7,'tutorial_done':False,'tutorial_completed':[]}
         try:
             saved_preferences=json.loads((self.root/'saves/preferences.json').read_text(encoding='utf-8'))
             volume=saved_preferences.get('sfx_volume',.7)
             if not isinstance(volume,bool) and isinstance(volume,(int,float)) and math.isfinite(volume):
                 self.preferences['sfx_volume']=max(0.0,min(1.0,volume))
             self.preferences['tutorial_done']=saved_preferences.get('tutorial_done') is True
+            completed=saved_preferences.get('tutorial_completed',[])
+            if isinstance(completed,list):
+                self.preferences['tutorial_completed']=list(dict.fromkeys(x for x in completed if isinstance(x,str)))
         except (OSError,ValueError,TypeError,AttributeError): pass
         self.assets.set_sfx_volume(self.preferences['sfx_volume'])
         self.settings_tab='audio'
@@ -58,6 +61,7 @@ class App:
                     if key in self.catalog: self.catalog[key]['copies']=max(0,int(count))
             except (ValueError,KeyError,TypeError): pass
         self.config.pop('slap_divisor',None)
+        self.config['amplitude']=50
         self.scene='menu'
         self.lab_mode=None
         self.tutorial=None
@@ -104,8 +108,10 @@ class App:
         pygame.draw.rect(self.canvas,color,rect,border_radius=radius)
 
     def button(self,label,rect,fn,enabled=True,accent=False):
+        interactive=enabled
         if self.tutorial and self.scene=='battle':
-            enabled=enabled and self.tutorial.button_enabled(label)
+            interactive=enabled and self.tutorial.button_enabled(label)
+            enabled=enabled and (self.tutorial.button_enabled(label) or self.tutorial.illustrate_button(label))
         rect=pygame.Rect(rect)
         mouse=self.mouse()
         color=(48,100,108) if accent else (43,59,85)
@@ -115,7 +121,7 @@ class App:
         font=self.assets.font(18)
         rendered=font.render(label,True,TEXT if enabled else (92,108,131))
         self.canvas.blit(rendered,rendered.get_rect(center=rect.center))
-        if enabled: self.buttons.append((rect,fn))
+        if interactive: self.buttons.append((rect,fn))
 
     def mouse(self):
         x,y=pygame.mouse.get_pos()
@@ -172,17 +178,48 @@ class App:
             elif event['type']=='tool_used': self.assets.sound('tool')
         self.seen_events=len(self.game.events)
         if self.game.achievements.new:
-            if self.lab_mode is None and self.tutorial is None:
+            if (self.lab_mode is None or self.lab_mode.kind=='pve') and self.tutorial is None:
                 self.notify('成就解鎖：'+'、'.join(self.game.achievements.new))
             self.game.achievements.new.clear()
 
     def request_start_game(self):
-        if self.preferences.get('tutorial_done',False):self.start_game()
-        else:self.start_tutorial()
+        self.tutorial=None;self.lab_mode=None;self.game=None
+        self.set_scene('singleplayer')
+
+    def request_pve(self,human_role):
+        self.start_pve(human_role)
+
+    def start_pve(self,human_role):
+        from .pve import start_pve
+        self.tutorial=None;self.lab_mode=None;self.game=None
+        self.scene='singleplayer'
+        try:start_pve(self,human_role)
+        except (OSError,ValueError,KeyError) as error:self.notify('無法開始單人模式：'+str(error))
 
     def start_tutorial(self):
         from .tutorial import Tutorial
-        self.tutorial=Tutorial(self)
+        try:self.tutorial=Tutorial(self)
+        except (OSError,ValueError,KeyError) as error:self.notify('無法載入教學：'+str(error))
+
+    def singleplayer(self):
+        self.text('單人模式',65,55,38,CYAN)
+        self.text('選擇角色｜中等難度',68,115,24,GOLD)
+        options=[(0,'我當打呼者','電腦：打巴掌者｜中等',
+                  '在正負閾值外累積分數，出牌應對電腦的高峰攻勢。','對手會累積波型，等待高點出手。'),
+                 (1,'我當打巴掌者','電腦：打呼者｜中等',
+                  '在正值落點選擇出手，用卡牌製造更高的落點。','對手會控制危險波型，壓縮出手機會。')]
+        for role,title,opponent,description,strategy in options:
+            x=65+role*590
+            self.panel((x,190,555,360))
+            self.text(title,x+25,220,29,CYAN if role==0 else CORAL)
+            self.text(opponent,x+25,280,21,GOLD)
+            self.wrap(description,x+25,330,505,21)
+            self.wrap(strategy,x+25,395,505,18,MUTED)
+            self.button('開始單人對戰',(x+25,465,505,55),lambda r=role:self.request_pve(r),accent=True)
+        self.text('使用目前的對局設定與牌堆；電腦的手牌不公開。',68,590,20,MUTED)
+        if not self.preferences.get('tutorial_done',False):
+            self.text('規則與卡牌說明請從主選單「新手教學」查看。',68,632,18,MUTED)
+        self.button('返回主選單',(65,740,240,48),lambda:self.set_scene('menu'))
 
     def tutorial_intro(self):
         self.tutorial.draw_intro()
@@ -207,7 +244,9 @@ class App:
         self.log_open=False
 
     def restart_match(self):
-        if self.lab_mode and self.lab_mode.kind=='bot':
+        if self.lab_mode and self.lab_mode.kind=='pve':
+            self.start_pve(self.lab_mode.human_role)
+        elif self.lab_mode and self.lab_mode.kind=='bot':
             from .lab_modes import start_bot
             start_bot(self,self.lab_mode.profile_path,self.lab_mode.human_role)
         else:
@@ -216,12 +255,11 @@ class App:
     def menu(self):
         self.text('SNORE / BATTLE',100,115,56,CYAN)
         self.text('一場關於睡眠、波形與巴掌的卡牌對戰',104,195,25)
-        self.text('同機雙人基礎版 · 未來將擴充連線',106,240,18,MUTED)
-        self.button('開始遊戲',(108,330,280,58),self.request_start_game,accent=True)
-        self.button('成就頁面',(108,406,280,58),lambda:self.set_scene('achievements'))
-        self.button('設定',(108,482,280,58),lambda:self.set_scene('settings'))
-        self.button('新手教學',(108,558,280,58),self.start_tutorial)
-        self.button('測試 AI ／ 回放',(108,634,280,58),lambda:self.set_scene('lab'))
+        self.text('單人對戰 · 中等電腦',106,240,18,MUTED)
+        self.button('單人模式',(108,330,280,58),self.request_start_game,accent=True)
+        self.button('新手教學',(108,406,280,58),self.start_tutorial)
+        self.button('成就頁面',(108,482,280,58),lambda:self.set_scene('achievements'))
+        self.button('設定',(108,558,280,58),lambda:self.set_scene('settings'))
         self.text('操作：滑鼠選牌／按鈕，滾輪捲動手牌，F3 查看紀錄',106,740,18,MUTED)
         self.draw_character(950,430,True)
         self.text('先把夢做完，再看看誰贏。',816,610,23,GOLD)
@@ -229,7 +267,7 @@ class App:
     def set_scene(self,scene):
         if self.tutorial and scene=='menu':
             self.tutorial=None;self.game=None
-        if self.scene=='battle' and self.lab_mode and self.lab_mode.kind=='bot' and scene!='battle':
+        if self.scene=='battle' and self.lab_mode and self.lab_mode.kind in ('bot','pve') and scene!='battle':
             self.lab_mode.save()
         self.scene=scene
         self.deck_offset=0
@@ -270,11 +308,9 @@ class App:
 
     def settings(self):
         self.text('設定',40,26,32,CYAN)
-        self.text('選擇下方分類調整，完成後按「儲存設定」。',40,73,18,MUTED)
         for i,(tab,label) in enumerate((('audio','音效'),('rules','對局設定'),('cards','卡牌組成'))):
             self.button(label,(40+i*210,108,190,40),lambda t=tab:self.set_settings_tab(t),accent=self.settings_tab==tab)
         {'audio':self.audio_settings,'rules':self.rule_settings,'cards':self.card_settings}[self.settings_tab]()
-        self.text('音效音量即時生效；對局設定與牌堆套用於新對局。按「儲存設定」保留調整。',40,730,17,MUTED)
         self.button('返回',(40,770,140,46),lambda:self.set_scene('menu'))
         self.button('儲存設定',(200,770,160,46),self.save_settings)
 
@@ -283,7 +319,6 @@ class App:
         volume=self.preferences['sfx_volume']
         self.text('音效音量',70,202,25)
         self.text(f'{round(volume*100)}%',1050,202,25,GOLD)
-        self.text('選牌、出牌、巴掌與道具音效；不影響背景音樂。',70,245,18,MUTED)
         self.button('－',(70,290,90,46),lambda:self.set_sfx_volume(volume-.1))
         self.button('＋',(1080,290,90,46),lambda:self.set_sfx_volume(volume+.1))
         bar=pygame.Rect(220,307,800,12)
@@ -291,14 +326,10 @@ class App:
         if volume>0: pygame.draw.rect(self.canvas,CYAN,(bar.x,bar.y,max(1,int(bar.width*volume)),bar.height),border_radius=6)
         pygame.draw.circle(self.canvas,GOLD,(bar.x+int(bar.width*volume),bar.centery),10)
         self.buttons.append((pygame.Rect(bar.x,290,bar.width,46),lambda:self.set_sfx_volume((self.mouse()[0]-bar.x)/bar.width)))
-        self.button('試聽出牌音效',(70,375,220,46),lambda:self.assets.sound('card'))
-        self.button('試聽選牌音效',(310,375,220,46),lambda:self.assets.sound('card_select'))
-        self.text('點選音量條或使用 ＋／－ 調整；0% 為靜音。',560,389,18,MUTED)
-        if not pygame.mixer.get_init(): self.text('目前無可用的音效裝置，仍可儲存音量設定。',70,490,18,MUTED)
 
     def rule_settings(self):
         self.panel((40,175,1200,390))
-        fields=[('振幅／閾值','amplitude',1),('基礎週期','period',1),('落點間隔','interval',.5),
+        fields=[('基礎週期','period',1),('落點間隔','interval',.5),
                 ('遊戲總長度','duration',1),('初始手牌','initial_hand',1),('手牌上限','hand_limit',1),
                 ('預覽長度','preview',1),('巴掌次數','slaps',1),('打呼固定分','snore_score',1),('巴掌底數','slap_base',.01),('打呼回合得分','snore_turn_score',1)]
         for i,(label,key,step) in enumerate(fields):
@@ -308,16 +339,9 @@ class App:
             self.text(f'{self.config[key]:g}',x+250,y+4,18,GOLD)
             self.button('-',(x+350,y,42,32),lambda k=key,d=-step:self.adjust(k,d))
             self.button('+',(x+400,y,42,32),lambda k=key,d=step:self.adjust(k,d))
-        try:
-            threshold_score=str(slap_points(self.config['amplitude'],self.config['slap_base']))
-        except RuleError:
-            threshold_score='超出範圍'
-        if len(threshold_score)>18: threshold_score=threshold_score[:12]+'…'
-        self.text(f'正閾值 +{self.config["amplitude"]:g}：巴掌 {threshold_score} 分',65,510,18,GOLD)
 
     def card_settings(self):
         self.text('共用牌堆組成',40,170,23)
-        self.text('滾輪捲動清單；0 張表示不加入。',320,174,17,MUTED)
         self.text(f'總張數 {sum(c["copies"] for c in self.catalog.values())}',1030,174,19,GOLD)
         entries=list(self.catalog.items())
         for i,(key,card) in enumerate(entries[self.deck_offset:self.deck_offset+SETTINGS_CARD_ROWS]):
@@ -325,7 +349,6 @@ class App:
             self.panel((40,y,1200,38),(22,33,53),6)
             self.text(card['category'],54,y+7,17,CATEGORIES[card['category']])
             self.text(card['name'],126,y+7,18)
-            self.text(card['description'],320,y+9,15,MUTED)
             self.text(str(card['copies']),1090,y+7,18,GOLD)
             self.button('-',(1140,y+3,36,32),lambda k=key:self.adjust_copies(k,-1))
             self.button('+',(1184,y+3,36,32),lambda k=key:self.adjust_copies(k,1))
@@ -350,15 +373,21 @@ class App:
             self._preview_wave=g.preview_wave(self.selected)
         return self._preview_wave
 
+    def view_player(self):
+        if self.lab_mode and self.lab_mode.kind in ('bot','pve'):
+            return self.lab_mode.human_role
+        return self.game.active
+
     def draw_graph(self):
         g=self.game
+        viewer=self.view_player()
         rect=pygame.Rect(40,119,1200,300)
         self.panel(rect)
         inner=pygame.Rect(58,149,1164,240)
         anchor=inner.centerx
         pps=52
         left_x=self.camera_x-(anchor-inner.left)/pps
-        visible_end=min(g.stat('duration'),self.camera_x+g.stat('preview',g.active))
+        visible_end=min(g.stat('duration'),self.camera_x+g.stat('preview',viewer))
         preview=self.selected_wave_preview()
         preview_samples=[]
         samples=[]
@@ -386,11 +415,11 @@ class App:
             if inner.left<=px<=inner.right and n>=0:
                 pygame.draw.line(self.canvas,(34,48,72),(px,inner.top),(px,inner.bottom),1)
                 self.text(str(n),px-4,inner.bottom+4,13,MUTED)
-        hidden_start=max(inner.left,min(inner.right,anchor+g.stat('preview',g.active)*pps))
+        hidden_start=max(inner.left,min(inner.right,anchor+g.stat('preview',viewer)*pps))
         if hidden_start<inner.right:
             self.panel((hidden_start,inner.top,inner.right-hidden_start,inner.height),(22,29,48),0)
             if inner.right-hidden_start>70: self.text('未知',hidden_start+14,inner.top+16,17,MUTED)
-        if not g.stat('blackout',g.active):
+        if not g.stat('blackout',viewer):
             last=None
             for px,x,y in samples:
                 py=cy-y*scale
@@ -422,7 +451,7 @@ class App:
         else:
             self.panel(inner,(7,10,18),0)
             self.text('關燈中：波形暫時不可見，落點判定仍有效',355,245,23,MUTED)
-        if self.tutorial and not g.stat('blackout',g.active):
+        if self.tutorial and not g.stat('blackout',viewer):
             self.tutorial.draw_graph_hint(inner,left_x,pps,scale,cy,preview)
         pygame.draw.line(self.canvas,GOLD,(anchor,inner.top),(anchor,inner.bottom),1)
         end_px=inner.left+(g.stat('duration')-left_x)*pps
@@ -430,7 +459,7 @@ class App:
             pygame.draw.line(self.canvas,CORAL,(end_px,inner.top),(end_px,inner.bottom),2)
             self.text('終點',min(end_px+5,inner.right-50),inner.top+4,16,CORAL)
         self.text('過去 ←',60,125,15,MUTED)
-        if preview is not None and not g.stat('blackout',g.active):
+        if preview is not None and not g.stat('blackout',viewer):
             pygame.draw.line(self.canvas,CYAN,(150,134),(177,134),2)
             self.text('目前波形',185,125,15,CYAN)
             pygame.draw.line(self.canvas,PREVIEW,(282,134),(294,134),3)
@@ -485,7 +514,9 @@ class App:
         if self.lab_mode and self.lab_mode.kind=='replay':
             self.lab_mode.controls()
         elif self.lab_mode and self.lab_mode.is_bot_turn():
-            self.text('AI 操作中…',48,480,21,CYAN)
+            self.text('電腦操作中…' if self.lab_mode.kind=='pve' else 'AI 操作中…',48,480,21,CYAN)
+        elif self.tutorial and self.tutorial.hidden_opponent():
+            self.text('對手回合，先等一下……',48,480,21,CYAN)
         elif self.camera_moving():
             self.text(f'鏡頭移動中 → {ROLES[g.active]} 行動階段',48,480,21,CYAN)
         elif g.phase=='landing':
@@ -516,11 +547,14 @@ class App:
             result='平手' if a==b else ROLES[0 if a>b else 1]+' 獲勝'
             self.text('對局結束：'+result,48,480,27,GOLD)
             self.button('再玩一場',(1010,475,225,46),self.restart_match,accent=True)
-        if self.lab_mode and self.lab_mode.kind=='bot' and self.lab_mode.is_bot_turn():
-            self.text('AI 的手牌不公開',205,540,19,MUTED)
+        hidden_tutorial=bool(self.tutorial and self.tutorial.hidden_opponent())
+        if hidden_tutorial:
+            self.text('對手正在行動……稍後就輪到你了。',205,570,23,MUTED)
+        elif self.lab_mode and self.lab_mode.kind in ('bot','pve') and self.lab_mode.is_bot_turn():
+            self.text('電腦的手牌不公開',205,540,19,MUTED)
         else:
             self.draw_hand()
-        self.draw_details()
+        if not hidden_tutorial:self.draw_details()
         self.draw_character(105,660,False,awake=g.active==1 and g.phase!='ended')
         self.draw_character(1175,660,True,awake=g.active==0 and g.phase!='ended')
         self.text('打巴掌者',53,738,18,CORAL)
@@ -671,7 +705,7 @@ class App:
         if 'background' in self.assets.images:
             self.canvas.blit(pygame.transform.smoothscale(self.assets.images['background'],(WIDTH,HEIGHT)),(0,0))
         {'menu':self.menu,'setup':self.settings,'settings':self.settings,
-         'achievements':self.achievements,'battle':self.battle,'lab':self.lab_menu.draw,'tutorial':self.tutorial_intro}[self.scene]()
+         'achievements':self.achievements,'battle':self.battle,'lab':self.lab_menu.draw,'tutorial':self.tutorial_intro,'singleplayer':self.singleplayer}[self.scene]()
         if self.scene=='battle' and self.tutorial:self.tutorial.draw_overlay()
         if self.scene=='battle' and self.log_open: self.log_panel()
         if self.message and pygame.time.get_ticks()<self.message_until:
@@ -687,16 +721,23 @@ class App:
 
     def handle(self,event):
         if event.type==pygame.QUIT:
-            if self.lab_mode and self.lab_mode.kind=='bot': self.lab_mode.save()
+            if self.lab_mode and self.lab_mode.kind in ('bot','pve'): self.lab_mode.save()
             self.running=False
         elif event.type==pygame.KEYDOWN:
+            mods=getattr(event,'mod',0)
+            if self.scene=='menu' and mods & pygame.KMOD_CTRL:
+                if event.key==pygame.K_F8:
+                    self.start_game();return
+                if event.key==pygame.K_F9:
+                    self.lab_menu.home();self.set_scene('lab');return
             if self.scene=='battle' and self.lab_mode and self.lab_mode.kind=='replay' and event.key in (pygame.K_SPACE,pygame.K_LEFT,pygame.K_RIGHT):
                 if event.key==pygame.K_SPACE: self.lab_mode.toggle()
                 else: self.lab_mode.move(-1 if event.key==pygame.K_LEFT else 1)
                 return
             if event.key==pygame.K_F3 and self.scene=='battle' and self.tutorial is None: self.toggle_log()
             elif event.key==pygame.K_ESCAPE:
-                if self.log_open: self.log_open=False
+                if self.tutorial:self.tutorial.back()
+                elif self.log_open: self.log_open=False
                 else: self.set_scene('menu')
             elif event.key in (pygame.K_LEFT,pygame.K_RIGHT) and self.scene=='battle':
                 self.scroll_hand(-1 if event.key==pygame.K_LEFT else 1)

@@ -6,19 +6,24 @@ import time
 from pathlib import Path
 import pygame
 from .core import Game,Command
+from .ai.controller import ComputerController
 from .replay import Replay,Recorder
 
 def bot_root(app): return app.root.parent/'snorebot'
 
 def bot_modules(app):
     path=bot_root(app)
-    if not (path/'botlab/policy.py').exists(): raise ValueError('找不到同層的 snorebot 資料夾')
+    if not (path/'botlab/policy.py').exists():
+        from .ai.policy import Policy,load_profile
+        from .ai.environment import observe,stable_seed
+        return Policy,load_profile,observe,stable_seed
     if str(path) not in sys.path: sys.path.insert(0,str(path))
     from botlab.policy import Policy,load_profile
     from botlab.environment import observe,stable_seed
     return Policy,load_profile,observe,stable_seed
 
 def install_game(app,game):
+    app.tutorial=None
     app.game=game; app.scene='battle'
     app.camera_x=app.camera_from=app.camera_target=game.x
     app.selected=None;app.inspect_tool=False;app.detail_scroll=0;app.hand_offset=0
@@ -26,20 +31,19 @@ def install_game(app,game):
     app.seen_events=len(game.events);app.log_open=False
     app.message='';app.message_until=0
 
-class BotMode:
+class BotMode(ComputerController):
     kind='bot'
     def __init__(self,app,profile_path,human_role):
         Policy,load_profile,self.observe,stable_seed=bot_modules(app)
-        self.app=app;self.human_role=int(human_role);self.applying=False
+        self.app=app;self.human_role=int(human_role)
         self.profile_path=Path(profile_path)
         self.profile=load_profile(profile_path)
         if self.profile['role']==self.human_role: raise ValueError('請選擇另一角色的策略')
         game=Game(app.config,app.catalog,seed=random.SystemRandom().randrange(2**32))
-        self.agent=Policy(self.profile,stable_seed(game.seed,self.profile['role']))
+        super().__init__(app,human_role,Policy(self.profile,stable_seed(game.seed,self.profile['role'])),self.observe)
         self.recorder=Recorder(game,dict(mode='human_vs_bot',human_role=human_role,profile=self.profile))
         self.saved=False;self.next_action=0;self.message=''
         install_game(app,game)
-    def is_bot_turn(self): return self.app.game.active!=self.human_role and self.app.game.phase!='ended'
     def after_command(self,player,action,uid):
         self.recorder.append(self.app.game,Command(player,action,uid))
         self.recorder.data['commands'][-1]['decision']=self.agent.last_reason if player!=self.human_role else '人類操作'
@@ -47,23 +51,10 @@ class BotMode:
         if self.app.game.phase=='ended': self.save()
     def save(self):
         if self.saved: return
-        path=bot_root(self.app)/'human_games'/f'{self.app.game.id}.json'
+        folder=bot_root(self.app)/'human_games' if bot_root(self.app).exists() else self.app.root/'saves/test_replays'
+        path=folder/f'{self.app.game.id}.json'
         self.recorder.save(path,self.app.game);self.saved=True
-        self.app.notify('人機測試回放已保存至 snorebot/human_games')
-    def tick(self):
-        app=self.app
-        if not self.is_bot_turn() or app.camera_moving() or app.log_open or pygame.time.get_ticks()<self.next_action: return
-        try:
-            observation=self.observe(app.game)
-            action,uid=self.agent.choose(observation)
-            if (action,uid) not in observation['legal']: raise ValueError('AI 回傳非法操作')
-            app.selected=uid
-            self.applying=True
-            app.command(action)
-        except Exception as error:
-            self.message=str(error);app.notify('AI 已停止：'+str(error))
-            self.next_action=10**15
-        finally: self.applying=False
+        self.app.notify('人機測試回放已儲存。')
     def banner(self):
         role=('打呼者','打巴掌者')[self.human_role]
         self.app.text(f'人機測試（不影響正式成就）｜你：{role}｜AI：{self.profile["name"]}',42,95,14,(151,169,194))
@@ -179,7 +170,7 @@ class LabMenu:
     def profiles(self,human_role):
         self.human_role=human_role;self.page='profiles';self.offset=0;self.entries=[]
         root=bot_root(self.app)
-        paths=list((root/'profiles').glob('*.json'))+list((root/'results').glob('*/profiles/*.json'))
+        paths=list((self.app.root/'data/ai').glob('*.json'))+list((root/'profiles').glob('*.json'))+list((root/'results').glob('*/profiles/*.json'))
         for path in sorted(paths,reverse=True):
             try:
                 data=json.loads(path.read_text(encoding='utf-8-sig'))
@@ -189,7 +180,7 @@ class LabMenu:
     def replays(self):
         self.page='replays';self.offset=0;self.entries=[]
         root=bot_root(self.app)
-        paths=list((root/'human_games').glob('*.json'))
+        paths=list((self.app.root/'saves/replays').glob('*.json'))+list((self.app.root/'saves/test_replays').glob('*.json'))+list((root/'human_games').glob('*.json'))
         latest=root/'results/latest.json'
         if latest.exists():
             run=Path(json.loads(latest.read_text(encoding='utf-8'))['path'])
@@ -212,7 +203,7 @@ class LabMenu:
         a=self.app
         a.text('測試 AI ／ 對局回放',45,35,32,(89,216,211))
         if self.page=='home':
-            a.wrap('策略在桌面 snorebot 訓練；這裡沿用主遊戲畫面試打或回放。人機測試與回放不會寫入正式成就。',45,100,1110,20)
+            a.wrap('開發者工具：可選內附模型、本機回放；有 snorebot 時也會列出訓練模型與測試結果。此處的試打與回放不影響成就。',45,100,1110,20)
             a.button('我當打呼者，選 AI',(45,230,460,65),lambda:self.profiles(0),accent=True)
             a.button('我當打巴掌者，選 AI',(45,315,460,65),lambda:self.profiles(1))
             a.button('選擇回放',(45,400,460,65),self.replays)
@@ -221,7 +212,7 @@ class LabMenu:
         else:
             a.text('選擇策略' if self.page=='profiles' else '選擇回放（最新實驗及人機對局）',45,100,23)
             a.text('滾輪捲動；舊實驗也可用 snorebot 的回放啟動檔開啟。',45,140,17,(151,169,194))
-            if not self.entries: a.text('目前沒有檔案，請先執行桌面 snorebot 的「開始測試」。',45,230,21)
+            if not self.entries: a.text('目前沒有可用檔案。',45,230,21)
             for i,(label,path) in enumerate(self.entries[self.offset:self.offset+9]):
                 a.button(label[:90],(45,190+i*57,1185,48),lambda p=path:self.open(p))
             a.button('返回測試選單',(45,760,220,48),self.home)
