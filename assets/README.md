@@ -2,8 +2,14 @@
 
 不用素材也可執行，預設以 Pygame 繪製角色與介面。
 
-- `images/snorer.png`：打呼者，透明背景建議。
-- `images/slapper.png`：打巴掌者。
+- `images/snorer.png`：打呼者靜態底圖，透明背景。
+- `images/snorer_bubble_small.png`、`images/snorer_bubble_large.png`：打呼者鼻子泡泡動態圖層（一般大小與落點超過 ±50 時的大泡泡）。
+- `images/snorer_flowers.png`：落點高於 50 或低於 -50 時飄出的幸福小花朵圖層。
+- `images/slapper.png`：打巴掌者靜態底圖（頭、身體、反戴紅色鴨舌帽），透明背景。
+- `images/slapper_eyes_normal.png`、`images/slapper_eyes_star.png`：一般瞇眼與落點高於 50 時閃爍的四角星眼睛圖層。
+- `images/slapper_thought.png`：落點未高於 50 時頭旁的心思雜亂符號圖層。
+- `images/slapper_hand.png`：落點高於 50 時舉起準備打巴掌的手部圖層。
+- `images/slapper_devil.png`：落點高於 50 時背後浮現的深紫色惡魔與紅眼圖層。
 - `images/background.png`：整體背景。
 - `audio/card_select.wav`：選取手牌的輕短聲，可替換同名WAV。
 - `audio/card.wav`、`audio/slap.wav`、`audio/tool.wav`：事件音效。

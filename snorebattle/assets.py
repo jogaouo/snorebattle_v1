@@ -10,7 +10,9 @@ class Assets:
                     self.root/'fonts/font.ttf']
         self.font_path=next((str(p) for p in candidates if p.exists()),None)
         self.images={}
-        for name in ('snorer','slapper','background'):
+        for name in ('snorer','slapper','background',
+                     'slapper_eyes_normal','slapper_eyes_star','slapper_thought','slapper_hand','slapper_devil',
+                     'snorer_bubble_small','snorer_bubble_large','snorer_flowers'):
             path=self.root/'images'/f'{name}.png'
             if path.exists():
                 try: self.images[name]=pygame.image.load(str(path)).convert_alpha()

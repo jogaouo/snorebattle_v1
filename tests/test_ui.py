@@ -268,6 +268,7 @@ class UITests(unittest.TestCase):
     def test_extra_hand_card_peeks_and_can_be_revealed(self):
         from snorebattle.app import PANEL,BG
         app=self.app; g=app.game
+        bg_at=lambda pos:tuple(app.assets.images['background'].get_at(pos))[:3] if 'background' in app.assets.images else BG
         g.draw(0,6-len(g.players[0].hand))
         fifth=g.players[0].hand[4]
         app.render()
@@ -277,16 +278,17 @@ class UITests(unittest.TestCase):
         self.assertEqual(app.hand_offset,1)
         app.hand_offset=len(g.players[0].hand)-4
         app.render()
-        self.assertEqual(tuple(app.canvas.get_at((800,600)))[:3],BG)
+        self.assertEqual(tuple(app.canvas.get_at((800,600)))[:3],bg_at((800,600)))
         self.assertTrue(all(rect.right<=815 for rect,fn in app.buttons if rect.top==576))
 
 
     def test_hand_peeks_both_sides_and_left_click_reveals(self):
         from snorebattle.app import PANEL,BG
         app=self.app; g=app.game
+        bg_at=lambda pos:tuple(app.assets.images['background'].get_at(pos))[:3] if 'background' in app.assets.images else BG
         g.draw(0,8-len(g.players[0].hand))
         app.render()
-        self.assertEqual(tuple(app.canvas.get_at((215,600)))[:3],BG)
+        self.assertEqual(tuple(app.canvas.get_at((215,600)))[:3],bg_at((215,600)))
         self.assertEqual(tuple(app.canvas.get_at((800,600)))[:3],PANEL)
         app.hand_offset=2; app.render()
         self.assertEqual(tuple(app.canvas.get_at((215,600)))[:3],PANEL)
@@ -297,7 +299,7 @@ class UITests(unittest.TestCase):
         self.assertEqual(app.hand_offset,1)
         app.hand_offset=len(g.players[0].hand)-4; app.render()
         self.assertEqual(tuple(app.canvas.get_at((215,600)))[:3],PANEL)
-        self.assertEqual(tuple(app.canvas.get_at((800,600)))[:3],BG)
+        self.assertEqual(tuple(app.canvas.get_at((800,600)))[:3],bg_at((800,600)))
         self.assertTrue(all(rect.left>=205 and rect.right<=815
                             for rect,fn in app.buttons if rect.top==576))
 
@@ -332,6 +334,97 @@ class UITests(unittest.TestCase):
         with patch.object(app,'text',side_effect=lambda text,*args,**kwargs:labels.append((str(text),args))):
             app.render()
         self.assertFalse(any(text=='+0.0' for text,args in labels))
+
+    def test_character_layers_react_to_landing_thresholds(self):
+        app=self.app; g=app.game
+        expected_layers={
+            'slapper','slapper_eyes_normal','slapper_eyes_star','slapper_thought','slapper_hand','slapper_devil',
+            'snorer','snorer_bubble_small','snorer_bubble_large','snorer_flowers',
+        }
+        self.assertTrue(expected_layers.issubset(app.assets.images.keys()))
+
+        drawn=[]
+        orig_sprite_layer=app.sprite_layer
+        def spy_sprite_layer(name,size):
+            drawn.append(name)
+            return orig_sprite_layer(name,size)
+
+        with patch.object(app,'sprite_layer',side_effect=spy_sprite_layer):
+            for y in (50.0,-50.0):
+                drawn.clear()
+                g.y=y
+                app.render()
+                self.assertIn('slapper_eyes_normal',drawn)
+                self.assertIn('slapper_thought',drawn)
+                self.assertNotIn('slapper_eyes_star',drawn)
+                self.assertNotIn('slapper_hand',drawn)
+                self.assertNotIn('slapper_devil',drawn)
+                self.assertIn('snorer_bubble_small',drawn)
+                self.assertNotIn('snorer_bubble_large',drawn)
+                self.assertNotIn('snorer_flowers',drawn)
+
+            drawn.clear()
+            g.y=50.5
+            app.render()
+            self.assertIn('slapper_eyes_star',drawn)
+            self.assertIn('slapper_hand',drawn)
+            self.assertIn('slapper_devil',drawn)
+            self.assertNotIn('slapper_eyes_normal',drawn)
+            self.assertNotIn('slapper_thought',drawn)
+            self.assertIn('snorer_bubble_large',drawn)
+            self.assertIn('snorer_flowers',drawn)
+            self.assertNotIn('snorer_bubble_small',drawn)
+
+            drawn.clear()
+            g.y=-50.5
+            app.render()
+            self.assertIn('slapper_eyes_normal',drawn)
+            self.assertIn('slapper_thought',drawn)
+            self.assertNotIn('slapper_eyes_star',drawn)
+            self.assertNotIn('slapper_devil',drawn)
+            self.assertIn('snorer_bubble_large',drawn)
+            self.assertIn('snorer_flowers',drawn)
+            self.assertNotIn('snorer_bubble_small',drawn)
+
+    def test_background_dream_cloud_pixel_score_button_and_spotlight(self):
+        app=self.app; g=app.game
+        self.assertIn('background',app.assets.images)
+        labels=[]
+        orig_button=app.button
+        def spy_button(label,rect,fn,enabled=True,accent=False):
+            labels.append(label)
+            return orig_button(label,rect,fn,enabled,accent)
+        with patch.object(app,'button',side_effect=spy_button):
+            app.render()
+        self.assertIn('去出牌!',labels)
+
+        # 大分數時像素數字應等比例縮小，不與兩側文字重疊。
+        g.players[0].score=1234567
+        g.players[1].score=9876543
+        score_rects=[]
+        orig_score=app.draw_pixel_score
+        def spy_score(s0,s1):
+            rect=orig_score(s0,s1)
+            score_rects.append(rect)
+            return rect
+        with patch.object(app,'draw_pixel_score',side_effect=spy_score):
+            app.render()
+        self.assertEqual(len(score_rects),1)
+        rect=score_rects[0]
+        self.assertLessEqual(rect.width,390)
+        self.assertGreaterEqual(rect.left,340)
+        self.assertLessEqual(rect.right,750)
+
+        # 聚光燈會依回合繪製在對應角色後方（先於角色底圖）。
+        order=[]
+        with patch.object(app,'draw_turn_spotlight',side_effect=lambda p:order.append(('spot',p))), \
+             patch.object(app,'draw_character',side_effect=lambda *a,**k:order.append(('char',a[2]))):
+            g.active=0; app.render()
+            self.assertEqual(order[0],('spot',0))
+            self.assertEqual([t[0] for t in order],['spot','char','char'])
+            order.clear()
+            g.active=1; app.render()
+            self.assertEqual(order[0],('spot',1))
 
 if __name__=='__main__': unittest.main()
 

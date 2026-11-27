@@ -22,6 +22,22 @@ EVENT_NAMES={'card_played':'出牌','card_discarded':'棄牌','landed':'落點',
  'effects_cleared':'清除可重置效果','cards_drawn':'抽牌','turn_started':'回合開始',
  'tool_removed':'道具離場','card_skipped':'略過出牌','game_ended':'對局結束'}
 
+PIXEL_GLYPHS={
+    '0':('01110','10001','10011','10101','11001','10001','01110'),
+    '1':('00100','01100','00100','00100','00100','00100','01110'),
+    '2':('01110','10001','00001','00110','01000','10000','11111'),
+    '3':('11110','00001','00001','01110','00001','00001','11110'),
+    '4':('00010','00110','01010','10010','11111','00010','00010'),
+    '5':('11111','10000','11110','00001','00001','10001','01110'),
+    '6':('01110','10000','10000','11110','10001','10001','01110'),
+    '7':('11111','00001','00010','00100','01000','01000','01000'),
+    '8':('01110','10001','10001','01110','10001','10001','01110'),
+    '9':('01110','10001','10001','01111','00001','00001','01110'),
+    '-':('00000','00000','00000','11111','00000','00000','00000'),
+    ':':('000','010','010','000','010','010','000'),
+}
+
+
 def initial_window_size(desktop):
     """畫布維持1280×840；啟動視窗配合桌面縮小，預留標題列及工作列空間。"""
     scale=min(1.0,max(1,desktop[0])*.9/WIDTH,max(1,desktop[1])*.9/HEIGHT)
@@ -84,6 +100,9 @@ class App:
         self.camera_duration=650
         self.clock=pygame.time.Clock()
         self.viewport=pygame.Rect(0,0,WIDTH,HEIGHT)
+        self._sprite_cache={}
+        self._cloud_cache={}
+        self._spotlight_cache={}
 
     def text(self,text,x,y,size=20,color=TEXT):
         self.canvas.blit(self.assets.font(size).render(str(text),True,color),(x,y))
@@ -353,7 +372,10 @@ class App:
     def draw_graph(self):
         g=self.game
         rect=pygame.Rect(40,119,1200,300)
-        self.panel(rect)
+        panel_surf=pygame.Surface(rect.size,pygame.SRCALPHA)
+        pygame.draw.rect(panel_surf,(*PANEL,186),panel_surf.get_rect(),border_radius=14)
+        pygame.draw.rect(panel_surf,(*LINE,155),panel_surf.get_rect(),1,border_radius=14)
+        self.canvas.blit(panel_surf,rect.topleft)
         inner=pygame.Rect(58,149,1164,240)
         anchor=inner.centerx
         pps=52
@@ -374,7 +396,9 @@ class App:
         scale=105/max_y
         cy=inner.centery
         band=g.config['amplitude']*scale
-        pygame.draw.rect(self.canvas,(29,56,64),(inner.left,cy-band,inner.width,band*2))
+        band_surf=pygame.Surface((inner.width,max(1,int(round(band*2)))),pygame.SRCALPHA)
+        band_surf.fill((29,56,64,148))
+        self.canvas.blit(band_surf,(inner.left,cy-band))
         for sign in (-1,1):
             yy=cy-sign*band
             pygame.draw.line(self.canvas,(92,132,118),(inner.left,yy),(inner.right,yy),1)
@@ -387,9 +411,6 @@ class App:
                 pygame.draw.line(self.canvas,(34,48,72),(px,inner.top),(px,inner.bottom),1)
                 self.text(str(n),px-4,inner.bottom+4,13,MUTED)
         hidden_start=max(inner.left,min(inner.right,anchor+g.stat('preview',g.active)*pps))
-        if hidden_start<inner.right:
-            self.panel((hidden_start,inner.top,inner.right-hidden_start,inner.height),(22,29,48),0)
-            if inner.right-hidden_start>70: self.text('未知',hidden_start+14,inner.top+16,17,MUTED)
         if not g.stat('blackout',g.active):
             last=None
             for px,x,y in samples:
@@ -419,6 +440,8 @@ class App:
             label_y=max(inner.top+4,min(inner.bottom-label_height-4,marker_py-label_height-8))
             self.panel((label_x-4,label_y-2,label_width+8,label_height+4),BG,5)
             self.text(label,label_x,label_y,17,GOLD)
+            if hidden_start<inner.right:
+                self.draw_dream_cloud(inner,hidden_start)
         else:
             self.panel(inner,(7,10,18),0)
             self.text('關燈中：波形暫時不可見，落點判定仍有效',355,245,23,MUTED)
@@ -439,6 +462,150 @@ class App:
             self.text('選牌預覽：'+g.catalog[card.definition]['name'],322,125,15,PREVIEW)
         self.text('目前落點固定 1/2 · 未來 →',665,125,15,GOLD)
 
+    def draw_dream_cloud(self,inner,hidden_start):
+        start_px=int(round(hidden_start))
+        width=inner.right-start_px
+        if width<=0:
+            return
+        pad_top,pad_bot,pad_right=18,20,26
+        pad_left=16
+        key=(start_px,inner.width,inner.height)
+        if key not in self._cloud_cache:
+            sw=width+pad_left+pad_right
+            sh=inner.height+pad_top+pad_bot
+            cloud=pygame.Surface((sw,sh),pygame.SRCALPHA)
+            # 雲朵本體圓弧節點：左緣頂端對齊 start_px（不遮擋左側已知預覽波）。
+            lobes=[]
+            lx=pad_left
+            for cy_frac,r in ((0.18,28),(0.40,34),(0.64,34),(0.84,26)):
+                lobes.append((lx+r,pad_top+int(inner.height*cy_frac),r))
+            rx=pad_left+width
+            for cy_frac,r in ((0.16,28),(0.38,34),(0.62,34),(0.84,26)):
+                lobes.append((rx-r+12,pad_top+int(inner.height*cy_frac),r))
+            steps_x=max(2,width//44)
+            for i in range(steps_x+1):
+                cx=pad_left+26+int((max(0,width-44))*i/steps_x)
+                r=28+(i%2)*6
+                lobes.append((cx,pad_top+16,r))
+                lobes.append((cx,pad_top+inner.height-16,r))
+            # 雲周圍柔和霧化暈層（左側略收斂，避免模糊到已知預覽線）。
+            for expand,alpha in ((15,16),(10,26),(5,40)):
+                mist=pygame.Surface((sw,sh),pygame.SRCALPHA)
+                for cx,cy,r in lobes:
+                    pygame.draw.circle(mist,(138,182,232,alpha),(cx,cy),r+expand)
+                pygame.draw.rect(mist,(138,182,232,alpha),(pad_left+4,pad_top-expand+8,max(1,width+4),inner.height+expand*2-16),border_radius=24)
+                # 裁掉超出左側 start_px 太多的霧氣，僅保留極微柔邊。
+                mist.fill((0,0,0,0),(0,0,max(0,pad_left-6),sh))
+                cloud.blit(mist,(0,0))
+            # 雲朵輪廓邊線與深藍夢境本體。
+            for cx,cy,r in lobes:
+                pygame.draw.circle(cloud,(108,154,208,165),(cx,cy),r+2)
+            pygame.draw.rect(cloud,(108,154,208,165),(pad_left+16,pad_top+8,max(1,width-16),inner.height-16),border_radius=24)
+            for cx,cy,r in lobes:
+                pygame.draw.circle(cloud,(24,37,68,242),(cx,cy),r)
+            pygame.draw.rect(cloud,(24,37,68,242),(pad_left+18,pad_top+10,max(1,width-18),inner.height-20),border_radius=22)
+            # 雲內柔和漸層暈光與星點裝飾（不留硬圓邊）。
+            glow=pygame.Surface((sw,sh),pygame.SRCALPHA)
+            pygame.draw.ellipse(glow,(48,74,122,72),(pad_left+24,pad_top+18,max(20,width-28),max(20,inner.height-54)))
+            glow=pygame.transform.smoothscale(pygame.transform.smoothscale(glow,(max(1,sw//4),max(1,sh//4))),(sw,sh))
+            cloud.blit(glow,(0,0))
+            for sx,sy,sr in ((0.35,0.30,3),(0.68,0.26,2),(0.55,0.68,3),(0.82,0.56,2)):
+                px=pad_left+int(width*sx)
+                py=pad_top+int(inner.height*sy)
+                if width>80:
+                    pygame.draw.circle(cloud,(186,216,250,115),(px,py),sr)
+            self._cloud_cache[key]=cloud
+        cloud=self._cloud_cache[key]
+        self.canvas.blit(cloud,(start_px-pad_left,inner.top-pad_top))
+        if width>85:
+            self.text('夢境 · 未知',start_px+22,inner.top+16,17,(168,196,232))
+        # 連接打呼者與夢境雲的泡泡小圓點。
+        if width>30:
+            for bx,by,br in ((1246,528,5),(1241,468,7),(1225,416,10)):
+                pygame.draw.circle(self.canvas,(120,166,218,165),(bx,by),br+2)
+                pygame.draw.circle(self.canvas,(28,44,78,230),(bx,by),br)
+                pygame.draw.circle(self.canvas,(195,224,255,150),(bx-br//3,by-br//3),max(1,br//3))
+
+    def draw_pixel_score(self,score0,score1):
+        """上方比分使用黃色像素數字，過長時依比例自動縮小。"""
+        s0,s1=str(score0),str(score1)
+        def text_units(txt):
+            return sum(len(PIXEL_GLYPHS.get(ch,PIXEL_GLYPHS['0'])[0])+1 for ch in txt)-1 if txt else 0
+        u0=text_units(s0)
+        u_colon=len(PIXEL_GLYPHS[':'][0])
+        u1=text_units(s1)
+        gap=3
+        total_units=u0+gap+u_colon+gap+u1
+        max_w=390
+        base_ps=6
+        ps=min(base_ps,max(2,max_w/max(1,total_units)))
+        # 以高對比像素格繪製，支援整數與平滑比例縮放。
+        render_ps=max(2,int(math.floor(ps)))
+        surf_w=max(1,total_units*render_ps+4)
+        surf_h=7*render_ps+4
+        pix=pygame.Surface((surf_w,surf_h),pygame.SRCALPHA)
+        yellow=(255,222,74)
+        highlight=(255,246,168)
+        shadow=(14,18,32)
+        def blit_str(txt,ux):
+            for ch in txt:
+                glyph=PIXEL_GLYPHS.get(ch,PIXEL_GLYPHS['0'])
+                for row_i,row in enumerate(glyph):
+                    for col_i,bit in enumerate(row):
+                        if bit=='1':
+                            rx=(ux+col_i)*render_ps
+                            ry=row_i*render_ps
+                            pygame.draw.rect(pix,shadow,(rx+max(1,render_ps//2),ry+max(1,render_ps//2),render_ps,render_ps))
+                            pygame.draw.rect(pix,yellow if row_i>=2 else highlight,(rx,ry,render_ps,render_ps))
+                ux+=len(glyph[0])+1
+            return ux-1
+        c_start=blit_str(s0,0)+gap
+        s1_start=blit_str(':',c_start)+gap
+        blit_str(s1,s1_start)
+        final_scale=min(1.0,max_w/max(1,surf_w))
+        if final_scale<1.0:
+            pix=pygame.transform.smoothscale(pix,(max(1,int(round(surf_w*final_scale))),max(1,int(round(surf_h*final_scale)))))
+        else:
+            final_scale=1.0
+        center_x=545
+        top_y=16+(42-pix.get_height())//2
+        left_x=center_x-pix.get_width()//2
+        self.canvas.blit(pix,(left_x,top_y))
+        # 分別在兩側像素數字正下方標示角色。
+        unit_px=render_ps*final_scale
+        l_cx=left_x+(u0*unit_px)/2
+        r_cx=left_x+((s1_start+u1/2)*unit_px)
+        lbl0=self.assets.font(15).render('打呼',True,CYAN)
+        lbl1=self.assets.font(15).render('巴掌',True,CORAL)
+        lbl_y=top_y+pix.get_height()+2
+        self.canvas.blit(lbl0,lbl0.get_rect(centerx=round(l_cx),top=lbl_y))
+        self.canvas.blit(lbl1,lbl1.get_rect(centerx=round(r_cx),top=lbl_y))
+        return pygame.Rect(left_x,top_y,pix.get_width(),pix.get_height())
+
+    def draw_turn_spotlight(self,active_player):
+        """輪到該玩家回合時，在角色圖層後方投射黃色聚光燈。"""
+        cx=1182 if active_player==0 else 100
+        ticks=pygame.time.get_ticks()
+        pulse=0.88+0.12*math.sin(ticks/360)
+        key=(active_player,round(pulse,1))
+        if key not in self._spotlight_cache:
+            # 限制在單側角色欄寬內並柔化邊緣，避免硬邊與蓋到手牌／說明面板。
+            w,h=186,255
+            spot=pygame.Surface((w,h),pygame.SRCALPHA)
+            mx=w//2
+            for top_hw,bot_hw,alpha in ((26,86,20),(18,68,28),(11,48,38)):
+                pts=[(mx-top_hw,4),(mx+top_hw,4),(mx+bot_hw,h-26),(mx-bot_hw,h-26)]
+                pygame.draw.polygon(spot,(255,224,96,int(alpha*pulse)),pts)
+            for rx,ry,alpha in ((74,100,24),(54,78,32),(36,54,38)):
+                pygame.draw.ellipse(spot,(255,228,112,int(alpha*pulse)),(mx-rx,128-ry,rx*2,ry*2))
+            for rx,ry,alpha in ((74,20,42),(52,14,56)):
+                pygame.draw.ellipse(spot,(255,226,102,int(alpha*pulse)),(mx-rx,h-28-ry,rx*2,ry*2))
+            for _ in range(2):
+                spot=pygame.transform.smoothscale(pygame.transform.smoothscale(spot,(w//3,h//3)),(w,h))
+            self._spotlight_cache[key]=spot
+        spot=self._spotlight_cache[key]
+        self.canvas.blit(spot,(cx-spot.get_width()//2,516))
+
     def boundaries(self):
         boundaries=set()
         for start,effects in self.game.wave.versions:
@@ -446,12 +613,79 @@ class App:
             boundaries.update(e.end for e in effects if e.end is not None)
         return boundaries
 
-    def draw_character(self,x,y,sleeping,awake=False):
+    def sprite_layer(self,name,size):
+        key=(name,size)
+        if key not in self._sprite_cache and name in self.assets.images:
+            self._sprite_cache[key]=pygame.transform.smoothscale(self.assets.images[name],size)
+        return self._sprite_cache.get(key)
+
+    def _blit_scaled_anchored(self,surface,top_left,anchor_ratio,scale,alpha=255):
+        w,h=surface.get_size()
+        sw=max(1,int(round(w*scale)))
+        sh=max(1,int(round(h*scale)))
+        scaled=surface if (sw,sh)==(w,h) else pygame.transform.smoothscale(surface,(sw,sh))
+        if alpha<255:
+            scaled=scaled.copy()
+            scaled.set_alpha(max(0,min(255,int(alpha))))
+        ax=anchor_ratio[0]*(w-sw)
+        ay=anchor_ratio[1]*(h-sh)
+        self.canvas.blit(scaled,(top_left[0]+ax,top_left[1]+ay))
+
+    def draw_character(self,x,y,sleeping,awake=False,landing_y=None):
         name='snorer' if sleeping else 'slapper'
+        ticks=pygame.time.get_ticks()
         if name in self.assets.images:
-            image=pygame.transform.smoothscale(self.assets.images[name],(140,170))
-            self.canvas.blit(image,(x-70,y-85)); return
-        bob=math.sin(pygame.time.get_ticks()/650)*4
+            size=(174,211)
+            top_left=(x-size[0]//2,y-size[1]//2)
+            if sleeping:
+                bob=math.sin(ticks/700)*1.5
+                pos=(top_left[0],top_left[1]+bob)
+                self.canvas.blit(self.sprite_layer('snorer',size),pos)
+                happy=landing_y is not None and (landing_y>50 or landing_y<-50)
+                bubble_name='snorer_bubble_large' if happy else 'snorer_bubble_small'
+                bubble=self.sprite_layer(bubble_name,size)
+                if bubble:
+                    pulse=(0.96+0.08*math.sin(ticks/480)) if happy else (0.90+0.14*math.sin(ticks/520))
+                    self._blit_scaled_anchored(bubble,pos,(268/560,390/680),pulse)
+                if happy:
+                    flowers=self.sprite_layer('snorer_flowers',size)
+                    if flowers:
+                        fx=math.sin(ticks/460)*2.2
+                        fy=math.cos(ticks/390)*3.0
+                        f_alpha=int(225+30*math.sin(ticks/340))
+                        self._blit_scaled_anchored(flowers,(pos[0]+fx,pos[1]+fy),(0.5,0.5),1.0,f_alpha)
+            else:
+                excited=landing_y is not None and landing_y>50
+                if excited:
+                    devil=self.sprite_layer('slapper_devil',size)
+                    if devil:
+                        loom=1.0+0.03*math.sin(ticks/280)
+                        d_alpha=int(225+30*math.sin(ticks/240))
+                        self._blit_scaled_anchored(devil,(top_left[0],top_left[1]+math.sin(ticks/340)*1.8),(304/560,362/680),loom,d_alpha)
+                self.canvas.blit(self.sprite_layer('slapper',size),top_left)
+                if excited:
+                    hand=self.sprite_layer('slapper_hand',size)
+                    if hand:
+                        self.canvas.blit(hand,(top_left[0],top_left[1]+math.sin(ticks/220)*2.5))
+                    stars=self.sprite_layer('slapper_eyes_star',size)
+                    if stars:
+                        twinkle=0.5+0.5*math.sin(ticks/125)
+                        star_scale=0.92+0.18*twinkle
+                        star_alpha=int(180+75*twinkle)
+                        self._blit_scaled_anchored(stars,top_left,(304/560,376/680),star_scale,star_alpha)
+                else:
+                    eyes=self.sprite_layer('slapper_eyes_normal',size)
+                    if eyes:
+                        self.canvas.blit(eyes,top_left)
+                    thought=self.sprite_layer('slapper_thought',size)
+                    if thought:
+                        tx=math.sin(ticks/380)*1.8
+                        ty=math.cos(ticks/310)*2.4
+                        self.canvas.blit(thought,(top_left[0]+tx,top_left[1]+ty))
+                if ticks<self.flash_until:
+                    self.text('啪！',x-38,y-114,24,CORAL)
+            return
+        bob=math.sin(ticks/650)*4
         y+=bob
         color=CYAN if sleeping else CORAL
         pygame.draw.ellipse(self.canvas,(37,50,73),(x-65,y+30,130,30))
@@ -465,7 +699,7 @@ class App:
         pygame.draw.circle(self.canvas,BG,(x,y-24),5 if sleeping else 3)
         if sleeping and not awake:
             self.text('Z z z',x-43,y-116,24,color)
-        elif not sleeping and pygame.time.get_ticks()<self.flash_until:
+        elif not sleeping and ticks<self.flash_until:
             self.text('啪！',x-43,y-116,24,color)
 
     def battle(self):
@@ -473,7 +707,7 @@ class App:
         color=CYAN if g.active==0 else CORAL
         self.text(f'{ROLES[g.active]} 的回合',40,22,29,color)
         self.text(f'第 {g.turn} 回合  /  {PHASES[g.phase]}',40,68,18,MUTED)
-        self.text(f'打呼 {g.players[0].score}  :  {g.players[1].score} 巴掌',420,26,26)
+        self.draw_pixel_score(g.players[0].score,g.players[1].score)
         self.text(f'巴掌 {g.slaps_left} 次',790,30,21,CORAL)
         self.button('紀錄 F3',(1000,25,115,42),self.toggle_log)
         self.button('主選單',(1130,25,110,42),lambda:self.set_scene('menu'))
@@ -500,7 +734,7 @@ class App:
             self.button('查看道具',(420,475,145,46),self.select_tool,g.players[g.active].tool is not None,self.inspect_tool)
             self.button('使用道具',(420,475,160,46),lambda:self.command('use_tool'),g.tool_ready())
             self.button('棄掉道具',(590,475,160,46),lambda:self.command('discard_tool'),g.players[g.active].tool is not None)
-            self.button('前往出牌階段',(1010,475,225,46),lambda:self.command('to_cards'),accent=True)
+            self.button('去出牌!',(1010,475,225,46),lambda:self.command('to_cards'),accent=True)
         elif g.phase=='cards':
             self.text('選一張手牌，再出牌或換牌；也可以略過。',45,482,19)
             selected=next((c for c in g.players[g.active].hand if c.uid==self.selected),None)
@@ -521,8 +755,11 @@ class App:
         else:
             self.draw_hand()
         self.draw_details()
-        self.draw_character(105,660,False,awake=g.active==1 and g.phase!='ended')
-        self.draw_character(1175,660,True,awake=g.active==0 and g.phase!='ended')
+        if g.phase!='ended':
+            self.draw_turn_spotlight(g.active)
+        landing_y=g.wave.value(self.camera_x) if self.camera_moving() else g.y
+        self.draw_character(100,640,False,awake=g.active==1 and g.phase!='ended',landing_y=landing_y)
+        self.draw_character(1182,640,True,awake=g.active==0 and g.phase!='ended',landing_y=landing_y)
         self.text('打巴掌者',53,738,18,CORAL)
         self.text('打呼者',1133,738,18,CYAN)
         current=g.players[g.active]
@@ -669,7 +906,10 @@ class App:
         self.update_camera()
         self.canvas.fill(BG)
         if 'background' in self.assets.images:
-            self.canvas.blit(pygame.transform.smoothscale(self.assets.images['background'],(WIDTH,HEIGHT)),(0,0))
+            bg=self.assets.images['background']
+            if bg.get_size()!=(WIDTH,HEIGHT):
+                bg=pygame.transform.smoothscale(bg,(WIDTH,HEIGHT))
+            self.canvas.blit(bg,(0,0))
         {'menu':self.menu,'setup':self.settings,'settings':self.settings,
          'achievements':self.achievements,'battle':self.battle,'lab':self.lab_menu.draw,'tutorial':self.tutorial_intro}[self.scene]()
         if self.scene=='battle' and self.tutorial:self.tutorial.draw_overlay()
