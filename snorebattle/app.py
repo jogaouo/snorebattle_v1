@@ -17,6 +17,7 @@ TEXT=(231,238,249); MUTED=(151,169,194); CYAN=(89,216,211)
 CORAL=(255,146,124); GOLD=(247,204,113); PREVIEW=(220,159,255)
 CATEGORIES={'波形':CYAN,'功能':(146,180,255),'特殊':(200,157,247),'道具':GOLD}
 PHASES={'landing':'落點','action':'行動','cards':'出牌','handoff':'換人','ended':'結算'}
+SCORE_EVENTS=('snore_scored','slapped')  # 打呼者每回合自動得分不播放得分音效
 EVENT_NAMES={'card_played':'出牌','card_discarded':'棄牌','landed':'落點','slapped':'打巴掌',
  'snore_turn_scored':'打呼回合得分','snore_scored':'打呼得分','tool_used':'使用道具','deck_shuffled':'洗牌',
  'effects_cleared':'清除可重置效果','cards_drawn':'抽牌','turn_started':'回合開始',
@@ -170,6 +171,8 @@ class App:
                 self.flash_until=pygame.time.get_ticks()+650
             elif event['type']=='card_played': self.assets.sound('card')
             elif event['type']=='tool_used': self.assets.sound('tool')
+            if event['type'] in SCORE_EVENTS and event.get('points',0)>0:
+                self.assets.sound('score')
         self.seen_events=len(self.game.events)
         if self.game.achievements.new:
             if self.lab_mode is None and self.tutorial is None:
@@ -283,7 +286,7 @@ class App:
         volume=self.preferences['sfx_volume']
         self.text('音效音量',70,202,25)
         self.text(f'{round(volume*100)}%',1050,202,25,GOLD)
-        self.text('選牌、出牌、巴掌與道具音效；不影響背景音樂。',70,245,18,MUTED)
+        self.text('選牌、出牌、得分、巴掌與道具音效；不影響背景音樂。',70,245,18,MUTED)
         self.button('－',(70,290,90,46),lambda:self.set_sfx_volume(volume-.1))
         self.button('＋',(1080,290,90,46),lambda:self.set_sfx_volume(volume+.1))
         bar=pygame.Rect(220,307,800,12)
@@ -293,7 +296,8 @@ class App:
         self.buttons.append((pygame.Rect(bar.x,290,bar.width,46),lambda:self.set_sfx_volume((self.mouse()[0]-bar.x)/bar.width)))
         self.button('試聽出牌音效',(70,375,220,46),lambda:self.assets.sound('card'))
         self.button('試聽選牌音效',(310,375,220,46),lambda:self.assets.sound('card_select'))
-        self.text('點選音量條或使用 ＋／－ 調整；0% 為靜音。',560,389,18,MUTED)
+        self.button('試聽得分音效',(550,375,220,46),lambda:self.assets.sound('score'))
+        self.text('點選音量條或使用 ＋／－ 調整；0% 為靜音。',70,445,18,MUTED)
         if not pygame.mixer.get_init(): self.text('目前無可用的音效裝置，仍可儲存音量設定。',70,490,18,MUTED)
 
     def rule_settings(self):

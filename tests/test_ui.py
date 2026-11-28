@@ -78,6 +78,27 @@ class UITests(unittest.TestCase):
             app.command('play')
             sound.assert_called_once_with('card')
 
+    def test_score_sound_plays_only_when_points_are_gained(self):
+        app=self.app
+        self.assertIn('score',app.assets.sounds)
+        g=app.game
+        with patch.object(app.assets,'sound') as sound:
+            g.events.append({'type':'snore_scored','points':10})
+            app.events()
+            sound.assert_called_once_with('score')
+            sound.reset_mock()
+            g.events.append({'type':'snore_turn_scored','points':1})
+            app.events()
+            sound.assert_not_called()  # 每回合自動得分保持安靜。
+            g.events.append({'type':'slapped','points':3,'y':20,'remaining':2})
+            app.events()
+            self.assertEqual([c.args[0] for c in sound.call_args_list],['slap','score'])
+            sound.reset_mock()
+            g.events.append({'type':'snore_scored','points':0})
+            g.events.append({'type':'card_played'})
+            app.events()
+            sound.assert_called_once_with('card')
+
     def test_clicking_hand_plays_selection_sound_once_and_deselect_is_silent(self):
         app=self.app
         first,second=app.game.players[0].hand[:2]

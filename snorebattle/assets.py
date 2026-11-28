@@ -18,7 +18,7 @@ class Assets:
         self.sounds={}
         self.sfx_volume=1.0
         if pygame.mixer.get_init():
-            for name in ('card','card_select','slap','tool'):
+            for name in ('card','card_select','slap','tool','score'):
                 path=self.root/'audio'/f'{name}.wav'
                 if path.exists():
                     try: self.sounds[name]=pygame.mixer.Sound(str(path))
